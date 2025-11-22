@@ -1,0 +1,974 @@
+import { create } from 'zustand';
+import { devtools, persist } from 'zustand/middleware';
+import type {
+  User,
+  Task,
+  TaskFilters,
+  UserPreferences,
+  Notification,
+  Client,
+  Payment,
+  MRRMetrics,
+  TeamMember,
+  TeamInvite,
+  Permissions,
+  OrgChartNode,
+} from '../types';
+import { buildOrgChart, getAllSubordinates } from '../utils/hierarchy';
+import { mockTasks } from './mockData';
+
+// Interface do estado global
+interface AppState {
+  // Estado de autenticação
+  user: User | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  
+  // Estado de tarefas
+  tasks: Task[];
+  selectedTask: Task | null;
+  taskFilters: TaskFilters;
+  isLoadingTasks: boolean;
+  
+  // Estado de UI
+  sidebarCollapsed: boolean;
+  theme: 'light' | 'dark' | 'auto';
+  notifications: Notification[];
+
+  // Estado de clientes
+  clients: Client[];
+  payments: Payment[];
+  selectedClient: Client | null;
+
+  // Estado de equipe
+  teamMembers: TeamMember[];
+  teamInvites: TeamInvite[];
+  selectedMember: TeamMember | null;
+
+  // Preferências do usuário
+  preferences: UserPreferences;
+  
+  // Ações de autenticação
+  setUser: (user: User | null) => void;
+  setIsAuthenticated: (isAuthenticated: boolean) => void;
+  setIsLoading: (isLoading: boolean) => void;
+  
+  // Ações de tarefas
+  setTasks: (tasks: Task[]) => void;
+  addTask: (task: Task) => void;
+  updateTask: (taskId: string, updates: Partial<Task>) => void;
+  deleteTask: (taskId: string) => void;
+  setSelectedTask: (task: Task | null) => void;
+  setTaskFilters: (filters: TaskFilters) => void;
+  setIsLoadingTasks: (isLoading: boolean) => void;
+  
+  // Ações de UI
+  toggleSidebar: () => void;
+  setTheme: (theme: 'light' | 'dark' | 'auto') => void;
+  addNotification: (notification: Notification) => void;
+  removeNotification: (notificationId: string) => void;
+  markNotificationAsRead: (notificationId: string) => void;
+  
+  // Ações de preferências
+  updatePreferences: (preferences: Partial<UserPreferences>) => void;
+
+  // Ações de clientes
+  addClient: (client: Client) => void;
+  updateClient: (clientId: string, updates: Partial<Client>) => void;
+  deleteClient: (clientId: string) => void;
+  setSelectedClient: (client: Client | null) => void;
+
+  // Ações de pagamentos
+  addPayment: (payment: Payment) => void;
+  updatePaymentStatus: (paymentId: string, status: import('../types').PaymentStatus, paidDate?: string) => void;
+
+  // Computed metrics
+  getMRRMetrics: () => MRRMetrics;
+
+  // Ações de equipe - Membros
+  addTeamMember: (member: TeamMember) => void;
+  updateTeamMember: (memberId: string, updates: Partial<TeamMember>) => void;
+  removeTeamMember: (memberId: string) => void;
+  setSelectedMember: (member: TeamMember | null) => void;
+  updateMemberPermissions: (memberId: string, permissions: Permissions) => void;
+
+  // Ações de equipe - Convites
+  sendInvite: (invite: TeamInvite) => void;
+  cancelInvite: (inviteId: string) => void;
+  updateInviteStatus: (inviteId: string, status: 'accepted' | 'rejected' | 'expired') => void;
+
+  // Getters de equipe
+  getOrgChart: () => OrgChartNode | null;
+  getMembersByDepartment: (department: string) => TeamMember[];
+  getMembersByRole: (role: string) => TeamMember[];
+  getSubordinates: (managerId: string) => TeamMember[];
+  getActiveMembers: () => TeamMember[];
+
+  // Ações gerais
+  resetState: () => void;
+}
+
+// Estado inicial
+const initialState = {
+  user: {
+    id: '1',
+    email: 'demo@taskflow.com',
+    fullName: 'Demo User',
+    avatarUrl: 'https://via.placeholder.com/150',
+    timezone: 'America/Sao_Paulo',
+    theme: 'light' as const,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  isAuthenticated: true,
+  isLoading: false,
+
+  tasks: mockTasks,
+  removedTasks: [
+    {
+      id: '1',
+      title: 'Implementar autenticação JWT',
+      description: 'Criar sistema de autenticação com tokens JWT',
+      status: 'in_progress',
+      priority: 'high',
+      progress: 60,
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 dias
+      category: {
+        id: '1',
+        name: 'Desenvolvimento',
+        color: '#3B82F6',
+        userId: '1',
+        isSystem: false,
+        createdAt: new Date().toISOString(),
+      },
+      tags: [
+        { id: '1', name: 'backend', color: '#EF4444', userId: '1', usageCount: 1, createdAt: new Date().toISOString() },
+        { id: '2', name: 'segurança', color: '#F59E0B', userId: '1', usageCount: 1, createdAt: new Date().toISOString() },
+      ],
+      assignee: {
+        id: '1',
+        fullName: 'Demo User',
+        email: 'demo@taskflow.com',
+        avatarUrl: 'https://via.placeholder.com/150',
+        timezone: 'America/Sao_Paulo',
+        theme: 'light' as const,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      createdBy: {
+        id: '1',
+        fullName: 'Demo User',
+        email: 'demo@taskflow.com',
+        avatarUrl: 'https://via.placeholder.com/150',
+        timezone: 'America/Sao_Paulo',
+        theme: 'light' as const,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      attachments: [],
+      comments: [],
+      activities: [],
+      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 dias atrás
+      updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 dia atrás
+    },
+    {
+      id: '2',
+      title: 'Criar interface do dashboard',
+      description: 'Desenvolver a interface principal do dashboard com gráficos e estatísticas',
+      status: 'pending',
+      priority: 'medium',
+      progress: 0,
+      dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 dias
+      category: {
+        id: '2',
+        name: 'Frontend',
+        color: '#10B981',
+        userId: '1',
+        isSystem: false,
+        createdAt: new Date().toISOString(),
+      },
+      tags: [
+        { id: '3', name: 'react', color: '#06B6D4', userId: '1', usageCount: 1, createdAt: new Date().toISOString() },
+        { id: '4', name: 'ui/ux', color: '#8B5CF6', userId: '1', usageCount: 1, createdAt: new Date().toISOString() },
+      },
+      assignee: {
+        id: '1',
+        fullName: 'Demo User',
+        email: 'demo@taskflow.com',
+        avatarUrl: 'https://via.placeholder.com/150',
+        timezone: 'America/Sao_Paulo',
+        theme: 'light' as const,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      createdBy: {
+        id: '1',
+        fullName: 'Demo User',
+        email: 'demo@taskflow.com',
+        avatarUrl: 'https://via.placeholder.com/150',
+        timezone: 'America/Sao_Paulo',
+        theme: 'light' as const,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      attachments: [],
+      comments: [],
+      activities: [],
+      createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 dia atrás
+      updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 dia atrás
+    },
+    {
+      id: '3',
+      title: 'Configurar CI/CD',
+      description: 'Configurar pipeline de integração contínua e deployment',
+      status: 'completed',
+      priority: 'low',
+      progress: 100,
+      dueDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 dias atrás
+      category: {
+        id: '3',
+        name: 'DevOps',
+        color: '#F59E0B',
+        userId: '1',
+        isSystem: false,
+        createdAt: new Date().toISOString(),
+      },
+      tags: [
+        { id: '5', name: 'github-actions', color: '#1F2937', userId: '1', usageCount: 1, createdAt: new Date().toISOString() },
+        { id: '6', name: 'deployment', color: '#EC4899', userId: '1', usageCount: 1, createdAt: new Date().toISOString() },
+      ],
+      assignee: {
+        id: '1',
+        fullName: 'Demo User',
+        email: 'demo@taskflow.com',
+        avatarUrl: 'https://via.placeholder.com/150',
+        timezone: 'America/Sao_Paulo',
+        theme: 'light' as const,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      createdBy: {
+        id: '1',
+        fullName: 'Demo User',
+        email: 'demo@taskflow.com',
+        avatarUrl: 'https://via.placeholder.com/150',
+        timezone: 'America/Sao_Paulo',
+        theme: 'light' as const,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      attachments: [],
+      comments: [],
+      activities: [],
+      createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 dias atrás
+      updatedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 dias atrás
+    },
+  ],
+  selectedTask: null,
+  taskFilters: {},
+  isLoadingTasks: false,
+  
+  sidebarCollapsed: false,
+  theme: 'light' as const,
+  notifications: [],
+
+  clients: [],
+  payments: [],
+  selectedClient: null,
+
+  teamMembers: [
+    {
+      id: '1',
+      user: {
+        id: '1',
+        email: 'paulo@taskflow.com',
+        fullName: 'Paulo Silva',
+        avatarUrl: undefined,
+        timezone: 'America/Sao_Paulo',
+        theme: 'light' as const,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      role: 'ceo' as const,
+      department: 'operations' as const,
+      permissions: {
+        modules: {
+          dashboard: { view: true, create: true, edit: true, delete: true },
+          tasks: { view: true, create: true, edit: true, delete: true },
+          clients: { view: true, create: true, edit: true, delete: true },
+          calendar: { view: true, create: true, edit: true, delete: true },
+          team: { view: true, create: true, edit: true, delete: true },
+          analytics: { view: true, create: true, edit: true, delete: true },
+          tags: { view: true, create: true, edit: true, delete: true },
+          settings: { view: true, create: true, edit: true, delete: true },
+        },
+        admin: {
+          manageUsers: true,
+          manageRoles: true,
+          managePermissions: true,
+          viewReports: true,
+          exportData: true,
+          manageBilling: true,
+        },
+        dataScope: 'all' as const,
+      },
+      subordinates: ['2', '3'],
+      hireDate: '2020-01-01',
+      status: 'active' as const,
+      createdAt: '2020-01-01T00:00:00Z',
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      id: '2',
+      user: {
+        id: '2',
+        email: 'ana@taskflow.com',
+        fullName: 'Ana Costa',
+        avatarUrl: undefined,
+        timezone: 'America/Sao_Paulo',
+        theme: 'light' as const,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      role: 'manager' as const,
+      department: 'engineering' as const,
+      permissions: {
+        modules: {
+          dashboard: { view: true, create: false, edit: false, delete: false },
+          tasks: { view: true, create: true, edit: true, delete: true },
+          clients: { view: true, create: true, edit: true, delete: false },
+          calendar: { view: true, create: true, edit: true, delete: true },
+          team: { view: true, create: false, edit: true, delete: false },
+          analytics: { view: true, create: false, edit: false, delete: false },
+          tags: { view: true, create: true, edit: true, delete: false },
+          settings: { view: true, create: false, edit: false, delete: false },
+        },
+        admin: {
+          manageUsers: false,
+          manageRoles: false,
+          managePermissions: false,
+          viewReports: true,
+          exportData: false,
+          manageBilling: false,
+        },
+        dataScope: 'team' as const,
+      },
+      managerId: '1',
+      subordinates: ['4'],
+      hireDate: '2021-03-15',
+      status: 'active' as const,
+      createdAt: '2021-03-15T00:00:00Z',
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      id: '3',
+      user: {
+        id: '3',
+        email: 'carlos@taskflow.com',
+        fullName: 'Carlos Mendes',
+        avatarUrl: undefined,
+        timezone: 'America/Sao_Paulo',
+        theme: 'light' as const,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      role: 'director' as const,
+      department: 'product' as const,
+      permissions: {
+        modules: {
+          dashboard: { view: true, create: true, edit: true, delete: true },
+          tasks: { view: true, create: true, edit: true, delete: true },
+          clients: { view: true, create: true, edit: true, delete: true },
+          calendar: { view: true, create: true, edit: true, delete: true },
+          team: { view: true, create: true, edit: true, delete: false },
+          analytics: { view: true, create: false, edit: false, delete: false },
+          tags: { view: true, create: true, edit: true, delete: true },
+          settings: { view: true, create: false, edit: false, delete: false },
+        },
+        admin: {
+          manageUsers: true,
+          manageRoles: false,
+          managePermissions: false,
+          viewReports: true,
+          exportData: true,
+          manageBilling: false,
+        },
+        dataScope: 'all' as const,
+      },
+      managerId: '1',
+      subordinates: ['5'],
+      hireDate: '2020-06-01',
+      status: 'active' as const,
+      createdAt: '2020-06-01T00:00:00Z',
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      id: '4',
+      user: {
+        id: '4',
+        email: 'maria@taskflow.com',
+        fullName: 'Maria Santos',
+        avatarUrl: undefined,
+        timezone: 'America/Sao_Paulo',
+        theme: 'light' as const,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      role: 'senior' as const,
+      department: 'engineering' as const,
+      permissions: {
+        modules: {
+          dashboard: { view: true, create: false, edit: false, delete: false },
+          tasks: { view: true, create: true, edit: true, delete: true },
+          clients: { view: true, create: false, edit: false, delete: false },
+          calendar: { view: true, create: true, edit: true, delete: true },
+          team: { view: true, create: false, edit: false, delete: false },
+          analytics: { view: false, create: false, edit: false, delete: false },
+          tags: { view: true, create: true, edit: true, delete: true },
+          settings: { view: true, create: false, edit: false, delete: false },
+        },
+        admin: {
+          manageUsers: false,
+          manageRoles: false,
+          managePermissions: false,
+          viewReports: false,
+          exportData: false,
+          manageBilling: false,
+        },
+        dataScope: 'own' as const,
+      },
+      managerId: '2',
+      subordinates: [],
+      hireDate: '2022-01-10',
+      status: 'active' as const,
+      createdAt: '2022-01-10T00:00:00Z',
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      id: '5',
+      user: {
+        id: '5',
+        email: 'joao@taskflow.com',
+        fullName: 'João Pereira',
+        avatarUrl: undefined,
+        timezone: 'America/Sao_Paulo',
+        theme: 'light' as const,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      role: 'mid_level' as const,
+      department: 'product' as const,
+      permissions: {
+        modules: {
+          dashboard: { view: true, create: false, edit: false, delete: false },
+          tasks: { view: true, create: true, edit: true, delete: false },
+          clients: { view: true, create: false, edit: false, delete: false },
+          calendar: { view: true, create: true, edit: true, delete: true },
+          team: { view: true, create: false, edit: false, delete: false },
+          analytics: { view: false, create: false, edit: false, delete: false },
+          tags: { view: true, create: true, edit: false, delete: false },
+          settings: { view: true, create: false, edit: false, delete: false },
+        },
+        admin: {
+          manageUsers: false,
+          manageRoles: false,
+          managePermissions: false,
+          viewReports: false,
+          exportData: false,
+          manageBilling: false,
+        },
+        dataScope: 'own' as const,
+      },
+      managerId: '3',
+      subordinates: [],
+      hireDate: '2022-08-20',
+      status: 'active' as const,
+      createdAt: '2022-08-20T00:00:00Z',
+      updatedAt: new Date().toISOString(),
+    },
+  ],
+  teamInvites: [],
+  selectedMember: null,
+
+  preferences: {
+    theme: 'light',
+    timezone: 'America/Sao_Paulo',
+    dateFormat: 'DD/MM/YYYY',
+    timeFormat: '24h',
+    notifications: {
+      email: true,
+      push: true,
+      taskReminders: true,
+      deadlineAlerts: true,
+    },
+    pomodoro: {
+      workDuration: 25,
+      shortBreak: 5,
+      longBreak: 15,
+      longBreakInterval: 4,
+      autoStart: false,
+      soundEnabled: true,
+    },
+  },
+};
+
+// Criar o store com middlewares
+export const useAppStore = create<AppState>()(
+  devtools(
+    persist(
+      (set, get) => ({
+        ...initialState,
+        
+        // Ações de autenticação
+        setUser: (user) => set({ user }),
+        setIsAuthenticated: (isAuthenticated) => set({ isAuthenticated }),
+        setIsLoading: (isLoading) => set({ isLoading }),
+        
+        // Ações de tarefas
+        setTasks: (tasks) => set({ tasks }),
+        addTask: (task) => set((state) => ({ tasks: [task, ...state.tasks] })),
+        updateTask: (taskId, updates) =>
+          set((state) => ({
+            tasks: state.tasks.map((task) =>
+              task.id === taskId ? { ...task, ...updates } : task
+            ),
+            selectedTask:
+              state.selectedTask?.id === taskId
+                ? { ...state.selectedTask, ...updates }
+                : state.selectedTask,
+          })),
+        deleteTask: (taskId) =>
+          set((state) => ({
+            tasks: state.tasks.filter((task) => task.id !== taskId),
+            selectedTask:
+              state.selectedTask?.id === taskId ? null : state.selectedTask,
+          })),
+        setSelectedTask: (selectedTask) => set({ selectedTask }),
+        setTaskFilters: (taskFilters) => set({ taskFilters }),
+        setIsLoadingTasks: (isLoadingTasks) => set({ isLoadingTasks }),
+        
+        // Ações de UI
+        toggleSidebar: () =>
+          set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+        setTheme: (theme) => {
+          set({ theme });
+          // Aplicar tema ao DOM
+          if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+          } else if (theme === 'light') {
+            document.documentElement.classList.remove('dark');
+          } else {
+            // Auto: detectar preferência do sistema
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (prefersDark) {
+              document.documentElement.classList.add('dark');
+            } else {
+              document.documentElement.classList.remove('dark');
+            }
+          }
+        },
+        addNotification: (notification) =>
+          set((state) => ({
+            notifications: [notification, ...state.notifications],
+          })),
+        removeNotification: (notificationId) =>
+          set((state) => ({
+            notifications: state.notifications.filter(
+              (n) => n.id !== notificationId
+            ),
+          })),
+        markNotificationAsRead: (notificationId) =>
+          set((state) => ({
+            notifications: state.notifications.map((n) =>
+              n.id === notificationId ? { ...n, read: true } : n
+            ),
+          })),
+        
+        // Ações de preferências
+        updatePreferences: (preferences) =>
+          set((state) => ({
+            preferences: { ...state.preferences, ...preferences },
+          })),
+
+        // Ações de clientes
+        addClient: (client) => set((state) => ({ clients: [client, ...state.clients] })),
+        updateClient: (clientId, updates) =>
+          set((state) => ({
+            clients: state.clients.map((client) =>
+              client.id === clientId ? { ...client, ...updates } : client
+            ),
+            selectedClient:
+              state.selectedClient?.id === clientId
+                ? { ...state.selectedClient, ...updates }
+                : state.selectedClient,
+          })),
+        deleteClient: (clientId) =>
+          set((state) => ({
+            clients: state.clients.filter((client) => client.id !== clientId),
+            selectedClient:
+              state.selectedClient?.id === clientId ? null : state.selectedClient,
+          })),
+        setSelectedClient: (selectedClient) => set({ selectedClient }),
+
+        // Ações de pagamentos
+        addPayment: (payment) => set((state) => ({ payments: [payment, ...state.payments] })),
+        updatePaymentStatus: (paymentId, status, paidDate) =>
+          set((state) => ({
+            payments: state.payments.map((payment) =>
+              payment.id === paymentId
+                ? { ...payment, status, paidDate: paidDate || payment.paidDate }
+                : payment
+            ),
+          })),
+
+        // Computed metrics
+        getMRRMetrics: () => {
+          const state = get();
+          const now = new Date();
+          const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+          const activeClients = state.clients.filter(c => c.status === 'active').length;
+          const trialClients = state.clients.filter(c => c.status === 'trial').length;
+          const churnedThisMonth = state.clients.filter(
+            c => c.status === 'churned' && new Date(c.updatedAt) >= firstDayOfMonth
+          ).length;
+          const newThisMonth = state.clients.filter(
+            c => new Date(c.createdAt) >= firstDayOfMonth
+          ).length;
+
+          const totalMRR = state.clients
+            .filter(c => c.status === 'active')
+            .reduce((sum, c) => sum + c.monthlyValue, 0);
+
+          const avgRevenuePerClient = activeClients > 0 ? totalMRR / activeClients : 0;
+          const projectedAnnualRevenue = totalMRR * 12;
+
+          const paymentsPending = state.clients.filter(
+            c => c.status === 'active' && c.paymentStatus === 'pending'
+          ).reduce((sum, c) => sum + c.monthlyValue, 0);
+
+          const paymentsOverdue = state.clients.filter(
+            c => c.status === 'active' && c.paymentStatus === 'overdue'
+          ).reduce((sum, c) => sum + c.monthlyValue, 0);
+
+          return {
+            totalMRR,
+            activeClients,
+            trialClients,
+            churnedThisMonth,
+            newThisMonth,
+            avgRevenuePerClient,
+            projectedAnnualRevenue,
+            paymentsPending,
+            paymentsOverdue,
+            totalClients: state.clients.length,
+          };
+        },
+
+        // Ações de equipe - Membros
+        addTeamMember: (member) =>
+          set((state) => ({ teamMembers: [member, ...state.teamMembers] })),
+
+        updateTeamMember: (memberId, updates) =>
+          set((state) => ({
+            teamMembers: state.teamMembers.map((member) =>
+              member.id === memberId
+                ? { ...member, ...updates, updatedAt: new Date().toISOString() }
+                : member
+            ),
+            selectedMember:
+              state.selectedMember?.id === memberId
+                ? { ...state.selectedMember, ...updates, updatedAt: new Date().toISOString() }
+                : state.selectedMember,
+          })),
+
+        removeTeamMember: (memberId) =>
+          set((state) => ({
+            teamMembers: state.teamMembers.filter((member) => member.id !== memberId),
+            selectedMember:
+              state.selectedMember?.id === memberId ? null : state.selectedMember,
+          })),
+
+        setSelectedMember: (selectedMember) => set({ selectedMember }),
+
+        updateMemberPermissions: (memberId, permissions) =>
+          set((state) => ({
+            teamMembers: state.teamMembers.map((member) =>
+              member.id === memberId
+                ? { ...member, permissions, updatedAt: new Date().toISOString() }
+                : member
+            ),
+          })),
+
+        // Ações de equipe - Convites
+        sendInvite: (invite) =>
+          set((state) => ({ teamInvites: [invite, ...state.teamInvites] })),
+
+        cancelInvite: (inviteId) =>
+          set((state) => ({
+            teamInvites: state.teamInvites.filter((invite) => invite.id !== inviteId),
+          })),
+
+        updateInviteStatus: (inviteId, status) =>
+          set((state) => ({
+            teamInvites: state.teamInvites.map((invite) =>
+              invite.id === inviteId ? { ...invite, status } : invite
+            ),
+          })),
+
+        // Getters de equipe
+        getOrgChart: () => {
+          const state = get();
+          return buildOrgChart(state.teamMembers);
+        },
+
+        getMembersByDepartment: (department) => {
+          const state = get();
+          return state.teamMembers.filter((m) => m.department === department);
+        },
+
+        getMembersByRole: (role) => {
+          const state = get();
+          return state.teamMembers.filter((m) => m.role === role);
+        },
+
+        getSubordinates: (managerId) => {
+          const state = get();
+          return getAllSubordinates(managerId, state.teamMembers);
+        },
+
+        getActiveMembers: () => {
+          const state = get();
+          return state.teamMembers.filter((m) => m.status === 'active');
+        },
+
+        // Ações gerais
+        resetState: () => set({ ...initialState }),
+      }),
+      {
+        name: 'taskflow-store', // nome do storage
+        partialize: (state) => ({
+          // Apenas persistir dados que devem ser salvos
+          user: state.user,
+          isAuthenticated: state.isAuthenticated,
+          theme: state.theme,
+          preferences: state.preferences,
+          sidebarCollapsed: state.sidebarCollapsed,
+        }),
+      }
+    )
+  )
+);
+
+// Seletores úteis
+export const useAuth = () => {
+  const { user, isAuthenticated, isLoading } = useAppStore();
+  const { setUser, setIsAuthenticated, setIsLoading, resetState } = useAppStore();
+  
+  const clearAuth = () => {
+    setUser(null);
+    setIsAuthenticated(false);
+    setIsLoading(false);
+  };
+  
+  return { user, isAuthenticated, isLoading, clearAuth };
+};
+
+export const useTasks = () => {
+  const { tasks, selectedTask, taskFilters, isLoadingTasks } = useAppStore();
+  const { setTasks, addTask, updateTask, deleteTask, setSelectedTask, setTaskFilters, setIsLoadingTasks } = useAppStore();
+  
+  return {
+    tasks,
+    selectedTask,
+    taskFilters,
+    isLoadingTasks,
+    setTasks,
+    addTask,
+    updateTask,
+    deleteTask,
+    setSelectedTask,
+    setTaskFilters,
+    setIsLoadingTasks,
+  };
+};
+
+export const useUI = () => {
+  const { sidebarCollapsed, theme, notifications } = useAppStore();
+  const { toggleSidebar, setTheme, addNotification, removeNotification, markNotificationAsRead } = useAppStore();
+  
+  return {
+    sidebarCollapsed,
+    theme,
+    notifications,
+    toggleSidebar,
+    setTheme,
+    addNotification,
+    removeNotification,
+    markNotificationAsRead,
+  };
+};
+
+export const usePreferences = () => {
+  const { preferences } = useAppStore();
+  const { updatePreferences } = useAppStore();
+  
+  return { preferences, updatePreferences };
+};
+
+// Hook para tarefas filtradas
+export const useFilteredTasks = () => {
+  const { tasks, taskFilters } = useAppStore();
+  
+  return tasks.filter((task) => {
+    // Filtrar por status
+    if (taskFilters.status?.length && !taskFilters.status.includes(task.status)) {
+      return false;
+    }
+    
+    // Filtrar por prioridade
+    if (taskFilters.priority?.length && !taskFilters.priority.includes(task.priority)) {
+      return false;
+    }
+    
+    // Filtrar por categoria
+    if (taskFilters.category?.length && !taskFilters.category.includes(task.category?.id || '')) {
+      return false;
+    }
+    
+    // Filtrar por responsável
+    if (taskFilters.assignee?.length && !taskFilters.assignee.includes(task.assignee?.id || '')) {
+      return false;
+    }
+    
+    // Filtrar por data de vencimento
+    if (taskFilters.dueDateFrom && task.dueDate) {
+      if (new Date(task.dueDate) < new Date(taskFilters.dueDateFrom)) {
+        return false;
+      }
+    }
+    
+    if (taskFilters.dueDateTo && task.dueDate) {
+      if (new Date(task.dueDate) > new Date(taskFilters.dueDateTo)) {
+        return false;
+      }
+    }
+    
+    // Filtrar por busca textual
+    if (taskFilters.search) {
+      const searchLower = taskFilters.search.toLowerCase();
+      const titleMatch = task.title.toLowerCase().includes(searchLower);
+      const descriptionMatch = task.description?.toLowerCase().includes(searchLower);
+      
+      if (!titleMatch && !descriptionMatch) {
+        return false;
+      }
+    }
+    
+    return true;
+  });
+};
+
+// Hook para estatísticas do dashboard
+export const useDashboardStats = () => {
+  const { tasks } = useAppStore();
+
+  const totalTasks = tasks.length;
+  const pendingTasks = tasks.filter(t => t.status === 'pending').length;
+  const inProgressTasks = tasks.filter(t => t.status === 'in_progress').length;
+  const completedTasks = tasks.filter(t => t.status === 'completed').length;
+  const overdueTasks = tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'completed').length;
+
+  const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+  const tasksByPriority = tasks.reduce((acc, task) => {
+    acc[task.priority] = (acc[task.priority] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const tasksByStatus = tasks.reduce((acc, task) => {
+    acc[task.status] = (acc[task.status] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  return {
+    totalTasks,
+    pendingTasks,
+    inProgressTasks,
+    completedTasks,
+    overdueTasks,
+    completionRate,
+    tasksByPriority,
+    tasksByStatus,
+  };
+};
+
+// Hook para clientes
+export const useClients = () => {
+  const { clients, payments, selectedClient } = useAppStore();
+  const { addClient, updateClient, deleteClient, setSelectedClient, addPayment, updatePaymentStatus, getMRRMetrics } = useAppStore();
+
+  return {
+    clients,
+    payments,
+    selectedClient,
+    addClient,
+    updateClient,
+    deleteClient,
+    setSelectedClient,
+    addPayment,
+    updatePaymentStatus,
+    getMRRMetrics,
+  };
+};
+
+// Hook para equipe
+export const useTeam = () => {
+  const { teamMembers, teamInvites, selectedMember } = useAppStore();
+  const {
+    addTeamMember,
+    updateTeamMember,
+    removeTeamMember,
+    setSelectedMember,
+    updateMemberPermissions,
+    sendInvite,
+    cancelInvite,
+    updateInviteStatus,
+    getOrgChart,
+    getMembersByDepartment,
+    getMembersByRole,
+    getSubordinates,
+    getActiveMembers,
+  } = useAppStore();
+
+  return {
+    teamMembers,
+    teamInvites,
+    selectedMember,
+    addTeamMember,
+    updateTeamMember,
+    removeTeamMember,
+    setSelectedMember,
+    updateMemberPermissions,
+    sendInvite,
+    cancelInvite,
+    updateInviteStatus,
+    getOrgChart,
+    getMembersByDepartment,
+    getMembersByRole,
+    getSubordinates,
+    getActiveMembers,
+  };
+};

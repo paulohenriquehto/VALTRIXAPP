@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* VALTRIXAPP - Light Theme */
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 225 9% 6%;
+    --card: 0 0% 100%;
+    --card-foreground: 225 9% 6%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 225 9% 6%;
+    --primary: 202 100% 50%; /* Neon Blue Pulse */
+    --primary-foreground: 0 0% 98%;
+    --secondary: 39 48% 58%; /* Valtrix Gold */
+    --secondary-foreground: 225 9% 6%;
+    --muted: 218 15% 87%; /* Cloud Gray */
+    --muted-foreground: 225 8% 40%;
+    --accent: 202 100% 50%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 218 15% 87%;
+    --input: 218 15% 87%;
+    --ring: 202 100% 50%;
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 225 9% 10%;
+    --sidebar-primary: 202 100% 50%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 218 15% 92%;
+    --sidebar-accent-foreground: 225 9% 10%;
+    --sidebar-border: 218 15% 87%;
+    --sidebar-ring: 202 100% 50%;
+  }
+
+  /* VALTRIXAPP - Dark Theme (Premium) */
+  .dark {
+    --background: 225 9% 6%; /* Valtrix Black */
+    --foreground: 218 15% 87%; /* Cloud Gray */
+    --card: 225 8% 11%; /* Graphite Steel */
+    --card-foreground: 218 15% 87%;
+    --popover: 225 8% 11%;
+    --popover-foreground: 218 15% 87%;
+    --primary: 202 100% 50%; /* Neon Blue Pulse */
+    --primary-foreground: 0 0% 98%;
+    --secondary: 39 48% 58%; /* Valtrix Gold */
+    --secondary-foreground: 225 9% 6%;
+    --muted: 225 8% 15%;
+    --muted-foreground: 218 15% 65%;
+    --accent: 206 56% 12%; /* Deep Navy */
+    --accent-foreground: 218 15% 87%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 225 8% 15%;
+    --input: 225 8% 15%;
+    --ring: 202 100% 50%;
+    --sidebar-background: 225 8% 11%;
+    --sidebar-foreground: 218 15% 87%;
+    --sidebar-primary: 202 100% 50%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 225 8% 16%;
+    --sidebar-accent-foreground: 218 15% 87%;
+    --sidebar-border: 225 8% 15%;
+    --sidebar-ring: 202 100% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}

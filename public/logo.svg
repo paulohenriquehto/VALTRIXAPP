@@ -1,0 +1,26 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="#0C0D10"/>
+
+  <!-- Gradient Definition -->
+  <defs>
+    <linearGradient id="valtrix-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- V Letter - Modern and Bold -->
+  <path d="M 140 140 L 256 380 L 372 140 L 320 140 L 256 290 L 192 140 Z"
+        fill="url(#valtrix-gradient)"
+        stroke="url(#valtrix-gradient)"
+        stroke-width="4"/>
+
+  <!-- Checkmark accent -->
+  <path d="M 360 200 L 390 230 L 440 170"
+        fill="none"
+        stroke="#22c55e"
+        stroke-width="16"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+</svg>
