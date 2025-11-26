@@ -52,6 +52,9 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB limit
+        // Importar handlers customizados para push notifications
+        importScripts: ['/sw-push.js'],
 
         runtimeCaching: [
           // Cache de API Supabase - Network First

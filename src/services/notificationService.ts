@@ -1,10 +1,12 @@
 /**
  * Notification Service
  *
- * Gerencia notificações push usando Web Push API
+ * Gerencia notificações push usando Web Push API e CRUD de notificações
  */
 
 import { supabase } from '@/lib/supabase';
+import type { RealtimeChannel } from '@supabase/supabase-js';
+import type { Notification } from '@/types';
 
 export interface PushSubscriptionData {
   endpoint: string;
@@ -14,12 +16,241 @@ export interface PushSubscriptionData {
   };
 }
 
+// Tipo para notificação do banco de dados
+export interface DbNotification {
+  id: string;
+  user_id: string;
+  type: 'info' | 'success' | 'warning' | 'error' | 'task_due' | 'task_overdue' | 'task_assigned' | 'task_completed';
+  title: string;
+  message: string;
+  read: boolean;
+  metadata: Record<string, any>;
+  related_task_id: string | null;
+  related_project_id: string | null;
+  created_at: string;
+  read_at: string | null;
+}
+
+// Converte notificação do banco para o tipo do app
+function dbToAppNotification(db: DbNotification): Notification {
+  return {
+    id: db.id,
+    type: db.type as Notification['type'],
+    title: db.title,
+    message: db.message,
+    read: db.read,
+    createdAt: db.created_at,
+    metadata: {
+      ...db.metadata,
+      relatedTaskId: db.related_task_id,
+      relatedProjectId: db.related_project_id,
+      readAt: db.read_at,
+    },
+  };
+}
+
 class NotificationService {
   private vapidPublicKey: string | null = null;
+  private realtimeChannel: RealtimeChannel | null = null;
 
   constructor() {
     this.vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || null;
   }
+
+  // ==================== CRUD Methods ====================
+
+  /**
+   * Busca todas as notificações do usuário
+   */
+  async getNotifications(userId: string): Promise<Notification[]> {
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+
+      return (data || []).map(dbToAppNotification);
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Busca contagem de notificações não lidas
+   */
+  async getUnreadCount(userId: string): Promise<number> {
+    try {
+      const { count, error } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('read', false);
+
+      if (error) throw error;
+
+      return count || 0;
+    } catch (error) {
+      console.error('Failed to fetch unread count:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Marca uma notificação como lida
+   */
+  async markAsRead(notificationId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read: true, read_at: new Date().toISOString() })
+        .eq('id', notificationId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Marca todas as notificações do usuário como lidas
+   */
+  async markAllAsRead(userId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read: true, read_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .eq('read', false);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Failed to mark all notifications as read:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Deleta uma notificação específica
+   */
+  async deleteNotification(notificationId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('id', notificationId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Failed to delete notification:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Limpa todas as notificações do usuário
+   */
+  async clearAllNotifications(userId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('user_id', userId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Failed to clear all notifications:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Inscreve para atualizações em tempo real
+   */
+  subscribeToRealtime(
+    userId: string,
+    onInsert: (notification: Notification) => void,
+    onUpdate?: (notification: Notification) => void,
+    onDelete?: (id: string) => void
+  ): RealtimeChannel {
+    // Remove canal anterior se existir
+    if (this.realtimeChannel) {
+      supabase.removeChannel(this.realtimeChannel);
+    }
+
+    this.realtimeChannel = supabase
+      .channel(`notifications:${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const notification = dbToAppNotification(payload.new as DbNotification);
+          onInsert(notification);
+
+          // Mostra notificação do sistema se permitido
+          if (this.getPermissionStatus() === 'granted') {
+            this.showNotification(notification.title, {
+              body: notification.message,
+              tag: notification.id,
+            });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          if (onUpdate) {
+            const notification = dbToAppNotification(payload.new as DbNotification);
+            onUpdate(notification);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          if (onDelete) {
+            onDelete((payload.old as { id: string }).id);
+          }
+        }
+      )
+      .subscribe();
+
+    return this.realtimeChannel;
+  }
+
+  /**
+   * Cancela inscrição do realtime
+   */
+  unsubscribeFromRealtime(): void {
+    if (this.realtimeChannel) {
+      supabase.removeChannel(this.realtimeChannel);
+      this.realtimeChannel = null;
+    }
+  }
+
+  // ==================== Web Push Methods ====================
 
   /**
    * Verifica se o navegador suporta notificações

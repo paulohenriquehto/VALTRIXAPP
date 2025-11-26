@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Bell,
@@ -14,10 +14,14 @@ import {
   CheckCircle,
   Info,
   AlertTriangle,
-  Menu,
-  X
+  X,
+  Clock,
+  BellOff,
+  BellRing
 } from 'lucide-react';
 import { useAuth, useUI } from '../stores/appStore';
+import { useNotifications } from '../stores/notificationStore';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '../lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -30,51 +34,44 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { useSidebar } from '@/components/ui/sidebar';
-import { Separator } from '@/components/ui/separator';
 import type { Notification } from '../types';
 
 const Header: React.FC = () => {
   const navigate = useNavigate();
   const { user, clearAuth } = useAuth();
   const { theme: darkMode, setTheme } = useUI();
-  const { toggleSidebar, open } = useSidebar();
+  const isMobile = useIsMobile();
+  const [searchOpen, setSearchOpen] = useState(false);
 
-  // Estado de notificações (mockado)
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: '1',
-      type: 'info',
-      title: 'Nova tarefa atribuída',
-      message: 'Você foi atribuído à tarefa "Implementar dashboard"',
-      read: false,
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: '2',
-      type: 'success',
-      title: 'Tarefa concluída',
-      message: 'A tarefa "Revisar código" foi marcada como concluída',
-      read: false,
-      createdAt: new Date(Date.now() - 3600000).toISOString(),
-    },
-    {
-      id: '3',
-      type: 'warning',
-      title: 'Prazo próximo',
-      message: 'A tarefa "Deploy em produção" vence em 2 dias',
-      read: true,
-      createdAt: new Date(Date.now() - 7200000).toISOString(),
-    },
-    {
-      id: '4',
-      type: 'error',
-      title: 'Tarefa atrasada',
-      message: 'A tarefa "Corrigir bugs críticos" está atrasada',
-      read: false,
-      createdAt: new Date(Date.now() - 10800000).toISOString(),
-    },
-  ]);
+  // Notification store (dados reais do Supabase)
+  const {
+    notifications,
+    unreadCount,
+    isLoading: notificationsLoading,
+    permissionStatus,
+    fetchNotifications,
+    markAsRead,
+    markAllAsRead,
+    clearAll,
+    subscribeToUpdates,
+    unsubscribeFromUpdates,
+    requestPushPermission,
+    subscribeToPush,
+    updatePermissionStatus,
+  } = useNotifications();
+
+  // Carregar notificações e configurar realtime ao montar
+  useEffect(() => {
+    if (user?.id) {
+      fetchNotifications(user.id);
+      subscribeToUpdates(user.id);
+      updatePermissionStatus();
+
+      return () => {
+        unsubscribeFromUpdates();
+      };
+    }
+  }, [user?.id]);
 
   const handleLogout = async () => {
     try {
@@ -98,32 +95,46 @@ const Header: React.FC = () => {
     }
   };
 
-  const markAsRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((notif) =>
-        notif.id === id ? { ...notif, read: true } : notif
-      )
-    );
+  const handleMarkAsRead = (id: string) => {
+    markAsRead(id);
   };
 
-  const markAllAsRead = () => {
-    setNotifications((prev) =>
-      prev.map((notif) => ({ ...notif, read: true }))
-    );
+  const handleMarkAllAsRead = () => {
+    if (user?.id) {
+      markAllAsRead(user.id);
+    }
   };
 
-  const clearAllNotifications = () => {
-    setNotifications([]);
+  const handleClearAllNotifications = () => {
+    if (user?.id) {
+      clearAll(user.id);
+    }
+  };
+
+  const handleEnablePush = async () => {
+    try {
+      const permission = await requestPushPermission();
+      if (permission === 'granted' && user?.id) {
+        await subscribeToPush(user.id);
+      }
+    } catch (error) {
+      console.error('Erro ao ativar notificações push:', error);
+    }
   };
 
   const getNotificationIcon = (type: Notification['type']) => {
     switch (type) {
       case 'success':
+      case 'task_completed':
         return <CheckCircle className="h-4 w-4 text-green-500" />;
       case 'error':
+      case 'task_overdue':
         return <AlertCircle className="h-4 w-4 text-red-500" />;
       case 'warning':
-        return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
+      case 'task_due':
+        return <Clock className="h-4 w-4 text-yellow-500" />;
+      case 'task_assigned':
+        return <User className="h-4 w-4 text-blue-500" />;
       default:
         return <Info className="h-4 w-4 text-blue-500" />;
     }
@@ -140,46 +151,46 @@ const Header: React.FC = () => {
     return `${Math.floor(seconds / 86400)}d atrás`;
   };
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
   return (
-    <header className="sticky top-0 z-50 flex h-16 shrink-0 items-center justify-between border-b bg-background px-4">
-      {/* Botão Toggle Sidebar */}
-      <div className="flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={toggleSidebar}
-          className="relative h-9 w-9 hover:bg-sidebar-accent transition-all duration-200 group"
-        >
-          <div className="relative w-5 h-5">
-            <Menu
-              className={`absolute inset-0 h-5 w-5 transition-all duration-300 ${
-                open ? 'rotate-90 opacity-0 scale-50' : 'rotate-0 opacity-100 scale-100'
-              }`}
-            />
-            <X
-              className={`absolute inset-0 h-5 w-5 transition-all duration-300 ${
-                open ? 'rotate-0 opacity-100 scale-100' : '-rotate-90 opacity-0 scale-50'
-              }`}
+    <header className="sticky top-0 z-50 flex h-16 shrink-0 items-center justify-between border-b border-border/50 bg-background/80 backdrop-blur-lg px-4">
+      {/* Barra de pesquisa - Responsiva */}
+      {isMobile ? (
+        <>
+          <div className="flex-1" />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSearchOpen(!searchOpen)}
+            className="mr-1"
+          >
+            {searchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
+          </Button>
+          {searchOpen && (
+            <div className="absolute top-16 left-0 right-0 p-3 bg-background border-b z-40 animate-in slide-in-from-top-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Pesquisar..."
+                  className="w-full pl-10 pr-4 py-2 rounded-lg border bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  autoFocus
+                />
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="flex-1 flex justify-center px-4">
+          <div className="relative w-full max-w-md">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Pesquisar..."
+              className="w-full pl-10 pr-4 py-2 rounded-lg border bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
-          <span className="sr-only">Toggle Sidebar</span>
-        </Button>
-        <Separator orientation="vertical" className="h-4" />
-      </div>
-
-      {/* Barra de pesquisa - Centralizada */}
-      <div className="flex-1 flex justify-center px-4">
-        <div className="relative w-full max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Pesquisar..."
-            className="w-full pl-10 pr-4 py-2 rounded-lg border bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
         </div>
-      </div>
+      )}
 
       {/* Ações do usuário */}
       <div className="flex items-center gap-2">
@@ -217,7 +228,7 @@ const Header: React.FC = () => {
                         variant="ghost"
                         size="sm"
                         className="h-7 text-xs"
-                        onClick={markAllAsRead}
+                        onClick={handleMarkAllAsRead}
                       >
                         <Check className="h-3 w-3 mr-1" />
                         Marcar todas
@@ -227,7 +238,7 @@ const Header: React.FC = () => {
                       variant="ghost"
                       size="sm"
                       className="h-7 text-xs"
-                      onClick={clearAllNotifications}
+                      onClick={handleClearAllNotifications}
                     >
                       <Trash2 className="h-3 w-3 mr-1" />
                       Limpar
@@ -235,9 +246,48 @@ const Header: React.FC = () => {
                   </div>
                 )}
               </div>
+
+              {/* Banner para ativar notificações push */}
+              {permissionStatus === 'default' && (
+                <>
+                  <div className="px-3 py-2 bg-blue-50 dark:bg-blue-950/30 border-y border-border/50">
+                    <div className="flex items-center gap-2">
+                      <BellRing className="h-4 w-4 text-blue-500" />
+                      <p className="text-xs text-muted-foreground flex-1">
+                        Ative notificações push para não perder prazos
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 text-xs"
+                        onClick={handleEnablePush}
+                      >
+                        Ativar
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {permissionStatus === 'denied' && (
+                <div className="px-3 py-2 bg-yellow-50 dark:bg-yellow-950/30 border-y border-border/50">
+                  <div className="flex items-center gap-2">
+                    <BellOff className="h-4 w-4 text-yellow-500" />
+                    <p className="text-xs text-muted-foreground">
+                      Notificações bloqueadas. Ative nas configurações do navegador.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <DropdownMenuSeparator />
 
-              {notifications.length === 0 ? (
+              {notificationsLoading ? (
+                <div className="py-8 text-center text-sm text-muted-foreground">
+                  <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2" />
+                  <p>Carregando...</p>
+                </div>
+              ) : notifications.length === 0 ? (
                 <div className="py-8 text-center text-sm text-muted-foreground">
                   <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
                   <p>Nenhuma notificação</p>
@@ -249,7 +299,7 @@ const Header: React.FC = () => {
                     className={`flex flex-col items-start gap-1 p-3 cursor-pointer ${
                       !notification.read ? 'bg-blue-50 dark:bg-blue-950/20' : ''
                     }`}
-                    onClick={() => !notification.read && markAsRead(notification.id)}
+                    onClick={() => !notification.read && handleMarkAsRead(notification.id)}
                   >
                     <div className="flex items-start gap-2 w-full">
                       {getNotificationIcon(notification.type)}
@@ -279,13 +329,13 @@ const Header: React.FC = () => {
           {/* Menu do usuário */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="gap-2">
+              <Button variant="ghost" className="gap-2 px-2 sm:px-3">
                 <Avatar className="h-8 w-8">
                   <AvatarFallback className="bg-gradient-to-r from-green-400 to-blue-500 text-white">
                     {user?.fullName?.charAt(0) || 'U'}
                   </AvatarFallback>
                 </Avatar>
-                <span className="text-sm font-medium">
+                <span className="text-sm font-medium hidden sm:inline">
                   {user?.fullName || 'Demo User'}
                 </span>
               </Button>

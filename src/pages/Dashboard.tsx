@@ -1,7 +1,6 @@
 import React, { useMemo, useEffect } from 'react';
 import { useDashboardStats, useTasks, useClients, useAuth } from '../stores/appStore';
 import { TaskService, ClientService } from '../services';
-import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -16,6 +15,9 @@ import {
   CalendarClock,
   BarChart3
 } from 'lucide-react';
+import { PageHeader, PageContainer } from '@/components/ui/page-header';
+import { KPIGrid, ResponsiveGrid } from '@/components/ui/responsive-grid';
+import { AIDashboardWidget } from '@/components/ai';
 
 const Dashboard: React.FC = () => {
   const stats = useDashboardStats();
@@ -158,27 +160,27 @@ const Dashboard: React.FC = () => {
 
     return (
       <Card className="hover:shadow-lg transition-all duration-200 bg-gradient-to-br from-muted/30 to-background">
-        <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-          <CardDescription className="text-sm font-medium">
+        <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 p-3 sm:p-4 sm:pb-2">
+          <CardDescription className="text-xs sm:text-sm font-medium truncate pr-2">
             {title}
           </CardDescription>
-          <Icon className="h-5 w-5 text-muted-foreground" />
+          <Icon className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground shrink-0" />
         </CardHeader>
-        <CardContent>
-          <div className="text-3xl font-bold tracking-tight">
+        <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0">
+          <div className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight truncate">
             {formatValue()}
           </div>
-          <div className="flex items-center gap-2 mt-2">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-1.5 sm:mt-2">
             {trend && trendValue !== undefined && (
               <Badge
                 variant="outline"
-                className={`gap-1 ${getBadgeColor()}`}
+                className={`gap-0.5 sm:gap-1 text-xs ${getBadgeColor()}`}
               >
                 {getTrendIcon()}
                 {Math.abs(trendValue).toFixed(1)}%
               </Badge>
             )}
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
               {description}
             </p>
           </div>
@@ -188,16 +190,17 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-4xl font-bold tracking-tight">Dashboard de Negócio</h1>
-        <p className="text-muted-foreground mt-2">
-          Visão geral das métricas mais importantes da operação
-        </p>
-      </div>
+    <PageContainer className="space-y-6 sm:space-y-8">
+      <PageHeader
+        title="Dashboard de Negócio"
+        description="Visão geral das métricas mais importantes da operação"
+      />
+
+      {/* AI Manager Widget */}
+      <AIDashboardWidget />
 
       {/* Métricas Principais - Linha 1 */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <KPIGrid>
         <MetricCard
           title="MRR - Receita Recorrente"
           value={businessMetrics.mrr}
@@ -249,10 +252,10 @@ const Dashboard: React.FC = () => {
           icon={AlertTriangle}
           format="currency"
         />
-      </div>
+      </KPIGrid>
 
       {/* Métricas Secundárias - Linha 2 */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <KPIGrid>
         <MetricCard
           title="Taxa de Conversão"
           value={businessMetrics.conversionRate}
@@ -299,10 +302,10 @@ const Dashboard: React.FC = () => {
           icon={CalendarClock}
           format="number"
         />
-      </div>
+      </KPIGrid>
 
       {/* Métricas de Previsão e Valores Pendentes - Linha 3 */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <KPIGrid>
         <MetricCard
           title="Receita Hoje"
           value={businessMetrics.todayRevenue}
@@ -354,129 +357,129 @@ const Dashboard: React.FC = () => {
           icon={AlertTriangle}
           format="currency"
         />
-      </div>
+      </KPIGrid>
 
       {/* Insights e Alertas */}
       <Card className="border-l-4 border-l-primary">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
+        <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-4">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5" />
             Insights de Negócio
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <h4 className="font-semibold text-sm flex items-center gap-2">
+        <CardContent className="space-y-4 p-4 sm:p-6 pt-0 sm:pt-0">
+          <ResponsiveGrid preset="two">
+            <div className="space-y-1.5 sm:space-y-2">
+              <h4 className="font-semibold text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2">
                 {businessMetrics.churnRate > 5 ? (
-                  <AlertTriangle className="h-4 w-4 text-red-500" />
+                  <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-500 shrink-0" />
                 ) : (
-                  <TrendingUp className="h-4 w-4 text-green-500" />
+                  <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-500 shrink-0" />
                 )}
                 Taxa de Churn
               </h4>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs sm:text-sm text-muted-foreground">
                 {businessMetrics.churnRate > 5
-                  ? `⚠️ Atenção! Churn de ${businessMetrics.churnRate.toFixed(1)}% está acima do ideal (5%). Foque em retenção de clientes.`
-                  : `✅ Churn de ${businessMetrics.churnRate.toFixed(1)}% está saudável. Continue monitorando.`}
+                  ? `⚠️ Churn de ${businessMetrics.churnRate.toFixed(1)}% alto. Foque em retenção.`
+                  : `✅ Churn de ${businessMetrics.churnRate.toFixed(1)}% saudável.`}
               </p>
             </div>
 
-            <div className="space-y-2">
-              <h4 className="font-semibold text-sm flex items-center gap-2">
+            <div className="space-y-1.5 sm:space-y-2">
+              <h4 className="font-semibold text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2">
                 {businessMetrics.lostRevenue > 1000 ? (
-                  <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                  <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-yellow-500 shrink-0" />
                 ) : (
-                  <TrendingUp className="h-4 w-4 text-green-500" />
+                  <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-500 shrink-0" />
                 )}
                 Oportunidades Perdidas
               </h4>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs sm:text-sm text-muted-foreground">
                 {businessMetrics.lostRevenue > 1000
-                  ? `💸 Você está deixando R$ ${businessMetrics.lostRevenue.toFixed(2)} na mesa! Priorize tarefas vencidas.`
-                  : `✅ Poucas oportunidades perdidas. Boa gestão de prazos!`}
+                  ? `💸 R$ ${businessMetrics.lostRevenue.toFixed(2)} na mesa!`
+                  : `✅ Boa gestão de prazos!`}
               </p>
             </div>
 
-            <div className="space-y-2">
-              <h4 className="font-semibold text-sm flex items-center gap-2">
+            <div className="space-y-1.5 sm:space-y-2">
+              <h4 className="font-semibold text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2">
                 {businessMetrics.tasksAtRisk > 5 ? (
-                  <AlertTriangle className="h-4 w-4 text-orange-500" />
+                  <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-orange-500 shrink-0" />
                 ) : (
-                  <TrendingUp className="h-4 w-4 text-green-500" />
+                  <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-500 shrink-0" />
                 )}
                 Tarefas em Risco
               </h4>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs sm:text-sm text-muted-foreground">
                 {businessMetrics.tasksAtRisk > 5
-                  ? `⏰ ${businessMetrics.tasksAtRisk} tarefas vencem em 7 dias. Redistribua recursos urgentemente.`
-                  : `✅ Apenas ${businessMetrics.tasksAtRisk} tarefas próximas do prazo. Carga controlada.`}
+                  ? `⏰ ${businessMetrics.tasksAtRisk} tarefas vencem em 7 dias.`
+                  : `✅ ${businessMetrics.tasksAtRisk} tarefas próximas do prazo.`}
               </p>
             </div>
 
-            <div className="space-y-2">
-              <h4 className="font-semibold text-sm flex items-center gap-2">
+            <div className="space-y-1.5 sm:space-y-2">
+              <h4 className="font-semibold text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2">
                 {businessMetrics.roi >= 300 ? (
-                  <TrendingUp className="h-4 w-4 text-green-500" />
+                  <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-500 shrink-0" />
                 ) : businessMetrics.roi >= 100 ? (
-                  <Target className="h-4 w-4 text-yellow-500" />
+                  <Target className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-yellow-500 shrink-0" />
                 ) : (
-                  <AlertTriangle className="h-4 w-4 text-red-500" />
+                  <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-500 shrink-0" />
                 )}
                 ROI Real
               </h4>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs sm:text-sm text-muted-foreground">
                 {businessMetrics.roi >= 300
-                  ? `🚀 ROI de ${businessMetrics.roi.toFixed(0)}% é excelente! Retorno 3x superior ao investimento em CAC.`
+                  ? `🚀 ROI ${businessMetrics.roi.toFixed(0)}% excelente!`
                   : businessMetrics.roi >= 100
-                  ? `📈 ROI de ${businessMetrics.roi.toFixed(0)}% está bom. Receita supera os custos de aquisição.`
+                  ? `📈 ROI ${businessMetrics.roi.toFixed(0)}% bom.`
                   : businessMetrics.roi > 0
-                  ? `⚠️ ROI de ${businessMetrics.roi.toFixed(0)}% precisa melhorar. Otimize custos de aquisição ou aumente receita.`
-                  : `💡 Sem dados de ROI. Adicione custos de aquisição (CAC) aos clientes para calcular ROI real.`}
+                  ? `⚠️ ROI ${businessMetrics.roi.toFixed(0)}% precisa melhorar.`
+                  : `💡 Sem dados de ROI.`}
               </p>
             </div>
 
-            <div className="space-y-2">
-              <h4 className="font-semibold text-sm flex items-center gap-2">
+            <div className="space-y-1.5 sm:space-y-2">
+              <h4 className="font-semibold text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2">
                 {businessMetrics.upcomingRevenue7Days > businessMetrics.mrr * 0.5 ? (
-                  <TrendingUp className="h-4 w-4 text-green-500" />
+                  <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-500 shrink-0" />
                 ) : businessMetrics.upcomingRevenue7Days > businessMetrics.mrr * 0.2 ? (
-                  <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                  <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-yellow-500 shrink-0" />
                 ) : (
-                  <AlertTriangle className="h-4 w-4 text-red-500" />
+                  <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-500 shrink-0" />
                 )}
                 Previsão 7 Dias
               </h4>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs sm:text-sm text-muted-foreground">
                 {businessMetrics.upcomingRevenue7Days > businessMetrics.mrr * 0.5
-                  ? `💰 R$ ${businessMetrics.upcomingRevenue7Days.toFixed(2)} previstos! Boa distribuição de vencimentos.`
+                  ? `💰 R$ ${businessMetrics.upcomingRevenue7Days.toFixed(2)} previstos!`
                   : businessMetrics.upcomingRevenue7Days > businessMetrics.mrr * 0.2
-                  ? `📊 R$ ${businessMetrics.upcomingRevenue7Days.toFixed(2)} esperados. Vencimentos moderados próximos.`
+                  ? `📊 R$ ${businessMetrics.upcomingRevenue7Days.toFixed(2)} esperados.`
                   : businessMetrics.upcomingRevenue7Days > 0
-                  ? `⚠️ Apenas R$ ${businessMetrics.upcomingRevenue7Days.toFixed(2)} previstos. Poucos vencimentos próximos.`
-                  : `💡 Nenhum vencimento nos próximos 7 dias. Verifique calendário de pagamentos.`}
+                  ? `⚠️ R$ ${businessMetrics.upcomingRevenue7Days.toFixed(2)} previstos.`
+                  : `💡 Sem vencimentos próximos.`}
               </p>
             </div>
 
             <div className="space-y-2">
-              <h4 className="font-semibold text-sm flex items-center gap-2">
+              <h4 className="font-semibold text-xs sm:text-sm flex items-center gap-2">
                 {businessMetrics.paymentsPending + businessMetrics.freelanceRevenuePending < 5000 ? (
-                  <TrendingUp className="h-4 w-4 text-green-500" />
+                  <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-500 shrink-0" />
                 ) : (
-                  <AlertTriangle className="h-4 w-4 text-orange-500" />
+                  <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-orange-500 shrink-0" />
                 )}
                 Valores Pendentes
               </h4>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs sm:text-sm text-muted-foreground">
                 {businessMetrics.paymentsPending + businessMetrics.freelanceRevenuePending < 5000
-                  ? `✅ R$ ${(businessMetrics.paymentsPending + businessMetrics.freelanceRevenuePending).toFixed(2)} pendentes. Boa gestão de recebíveis!`
-                  : `⚠️ R$ ${(businessMetrics.paymentsPending + businessMetrics.freelanceRevenuePending).toFixed(2)} pendentes (MRR: R$ ${businessMetrics.paymentsPending.toFixed(2)} + Freelance: R$ ${businessMetrics.freelanceRevenuePending.toFixed(2)}). Monitore cobranças.`}
+                  ? `✅ R$ ${(businessMetrics.paymentsPending + businessMetrics.freelanceRevenuePending).toFixed(2)} pendentes. Boa gestão!`
+                  : `⚠️ R$ ${(businessMetrics.paymentsPending + businessMetrics.freelanceRevenuePending).toFixed(2)} pendentes. Monitore cobranças.`}
               </p>
             </div>
-          </div>
+          </ResponsiveGrid>
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   );
 };
 

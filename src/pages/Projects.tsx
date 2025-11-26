@@ -11,14 +11,13 @@ import {
   Search,
   Filter,
   CheckCircle2,
-  Clock,
   PauseCircle,
-  XCircle,
   TrendingUp,
   Calendar,
   DollarSign,
   LayoutGrid,
   List,
+  MoreVertical,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -58,6 +57,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import ProjectDialog from '../components/ProjectDialog';
+import { PageHeader, PageContainer, PageAction } from '@/components/ui/page-header';
+import { StatsGrid, CardGrid } from '@/components/ui/responsive-grid';
+import { useIsMobile } from '@/hooks/use-mobile';
 import type { Project } from '../types';
 
 const Projects: React.FC = () => {
@@ -65,6 +67,7 @@ const Projects: React.FC = () => {
   const { projects, setProjects } = useProjects();
   const { clients } = useClients();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -77,6 +80,9 @@ const Projects: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [clientFilter, setClientFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+
+  // Auto-switch para cards no mobile
+  const effectiveViewMode = isMobile ? 'grid' : viewMode;
 
   useEffect(() => {
     if (user) {
@@ -253,21 +259,23 @@ const Projects: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <PageContainer>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Projetos</h1>
-          <p className="text-muted-foreground">Gerencie todos os seus projetos em um só lugar</p>
-        </div>
-        <Button onClick={handleCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Projeto
-        </Button>
-      </div>
+      <PageHeader
+        title="Projetos"
+        description="Gerencie todos os seus projetos em um só lugar"
+        actions={
+          <PageAction>
+            <Button onClick={handleCreate} className="w-full sm:w-auto">
+              <Plus className="mr-2 h-4 w-4" />
+              <span className="sm:inline">Novo Projeto</span>
+            </Button>
+          </PageAction>
+        }
+      />
 
       {/* Cards de Estatísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <StatsGrid>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total</CardTitle>
@@ -275,7 +283,7 @@ const Projects: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.total}</div>
-            <p className="text-xs text-muted-foreground">projetos cadastrados</p>
+            <p className="text-xs text-muted-foreground">projetos</p>
           </CardContent>
         </Card>
 
@@ -314,78 +322,83 @@ const Projects: React.FC = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Orçamento Total</CardTitle>
+            <CardTitle className="text-sm font-medium">Orçamento</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.totalBudget)}</div>
-            <p className="text-xs text-muted-foreground">em projetos</p>
+            <div className="text-xl sm:text-2xl font-bold truncate">{formatCurrency(stats.totalBudget)}</div>
+            <p className="text-xs text-muted-foreground">total</p>
           </CardContent>
         </Card>
-      </div>
+      </StatsGrid>
 
       {/* Filtros e Busca */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* Busca */}
-            <div className="relative flex-1">
+        <CardContent className="pt-4 sm:pt-6">
+          <div className="flex flex-col gap-3 sm:gap-4">
+            {/* Linha 1: Busca */}
+            <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar por nome, cliente ou descrição..."
+                placeholder="Buscar por nome, cliente..."
                 className="pl-10"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
 
-            {/* Filtro de Status */}
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full md:w-[180px]">
-                <Filter className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os status</SelectItem>
-                <SelectItem value="planning">Planejamento</SelectItem>
-                <SelectItem value="active">Ativo</SelectItem>
-                <SelectItem value="on_hold">Pausado</SelectItem>
-                <SelectItem value="completed">Concluído</SelectItem>
-                <SelectItem value="cancelled">Cancelado</SelectItem>
-              </SelectContent>
-            </Select>
+            {/* Linha 2: Filtros e Toggle */}
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
+              {/* Filtro de Status */}
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-[160px]">
+                  <Filter className="mr-2 h-4 w-4 shrink-0" />
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os status</SelectItem>
+                  <SelectItem value="planning">Planejamento</SelectItem>
+                  <SelectItem value="active">Ativo</SelectItem>
+                  <SelectItem value="on_hold">Pausado</SelectItem>
+                  <SelectItem value="completed">Concluído</SelectItem>
+                  <SelectItem value="cancelled">Cancelado</SelectItem>
+                </SelectContent>
+              </Select>
 
-            {/* Filtro de Cliente */}
-            <Select value={clientFilter} onValueChange={setClientFilter}>
-              <SelectTrigger className="w-full md:w-[200px]">
-                <SelectValue placeholder="Cliente" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os clientes</SelectItem>
-                {uniqueClients.map((client) => (
-                  <SelectItem key={client.id} value={client.id}>
-                    {client.companyName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              {/* Filtro de Cliente */}
+              <Select value={clientFilter} onValueChange={setClientFilter}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Cliente" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os clientes</SelectItem>
+                  {uniqueClients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.companyName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            {/* Toggle de Visualização */}
-            <div className="flex gap-1 border rounded-md p-1">
-              <Button
-                variant={viewMode === 'table' ? 'secondary' : 'ghost'}
-                size="icon"
-                onClick={() => setViewMode('table')}
-              >
-                <List className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
-                size="icon"
-                onClick={() => setViewMode('grid')}
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </Button>
+              {/* Toggle de Visualização - apenas desktop */}
+              {!isMobile && (
+                <div className="flex gap-1 border rounded-md p-1 ml-auto">
+                  <Button
+                    variant={viewMode === 'table' ? 'secondary' : 'ghost'}
+                    size="icon"
+                    onClick={() => setViewMode('table')}
+                  >
+                    <List className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+                    size="icon"
+                    onClick={() => setViewMode('grid')}
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
@@ -394,26 +407,26 @@ const Projects: React.FC = () => {
       {/* Lista de Projetos */}
       {filteredProjects.length === 0 ? (
         <Card>
-          <div className="p-12 text-center">
-            <FolderKanban className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-            <p className="text-muted-foreground mb-4">
+          <div className="p-8 sm:p-12 text-center">
+            <FolderKanban className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3" />
+            <p className="text-muted-foreground mb-4 text-sm sm:text-base">
               {projects.length === 0
                 ? 'Nenhum projeto cadastrado.'
                 : 'Nenhum projeto encontrado com os filtros aplicados.'}
             </p>
             {projects.length === 0 && (
-              <Button variant="outline" onClick={handleCreate}>
+              <Button variant="outline" onClick={handleCreate} className="w-full sm:w-auto">
                 <Plus className="mr-2 h-4 w-4" />
                 Criar primeiro projeto
               </Button>
             )}
           </div>
         </Card>
-      ) : viewMode === 'table' ? (
-        /* Visualização em Tabela */
+      ) : effectiveViewMode === 'table' ? (
+        /* Visualização em Tabela - Desktop */
         <Card>
-          <div className="p-4 border-b">
-            <h2 className="text-lg font-semibold">
+          <div className="p-3 sm:p-4 border-b">
+            <h2 className="text-base sm:text-lg font-semibold">
               Lista de Projetos ({filteredProjects.length})
             </h2>
           </div>
@@ -422,11 +435,11 @@ const Projects: React.FC = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Projeto</TableHead>
-                  <TableHead>Cliente</TableHead>
+                  <TableHead className="hidden md:table-cell">Cliente</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Progresso</TableHead>
-                  <TableHead>Período</TableHead>
-                  <TableHead>Orçamento</TableHead>
+                  <TableHead className="hidden lg:table-cell">Progresso</TableHead>
+                  <TableHead className="hidden xl:table-cell">Período</TableHead>
+                  <TableHead className="hidden sm:table-cell">Orçamento</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -440,25 +453,28 @@ const Projects: React.FC = () => {
                       onClick={() => handleView(project)}
                     >
                       <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                            <FolderKanban className="h-5 w-5 text-primary" />
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                            <FolderKanban className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                           </div>
-                          <div>
-                            <div className="font-medium">{project.name}</div>
+                          <div className="min-w-0">
+                            <div className="font-medium truncate">{project.name}</div>
+                            <div className="text-sm text-muted-foreground md:hidden">
+                              {project.client.companyName}
+                            </div>
                             {project.description && (
-                              <div className="text-sm text-muted-foreground line-clamp-1">
+                              <div className="text-sm text-muted-foreground line-clamp-1 hidden sm:block">
                                 {project.description}
                               </div>
                             )}
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>{project.client.companyName}</TableCell>
+                      <TableCell className="hidden md:table-cell">{project.client.companyName}</TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         {getStatusBadge(project.status)}
                       </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell onClick={(e) => e.stopPropagation()} className="hidden lg:table-cell">
                         <div className="w-32">
                           <div className="flex justify-between text-xs mb-1">
                             <span>{progress.completed}/{progress.total}</span>
@@ -470,7 +486,7 @@ const Projects: React.FC = () => {
                           />
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden xl:table-cell">
                         <div className="text-sm">
                           {project.startDate && (
                             <div className="flex items-center gap-1">
@@ -485,14 +501,14 @@ const Projects: React.FC = () => {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="font-medium">
+                      <TableCell className="font-medium hidden sm:table-cell">
                         {formatCurrency(project.budget)}
                       </TableCell>
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              Ações
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
@@ -522,57 +538,57 @@ const Projects: React.FC = () => {
           </div>
         </Card>
       ) : (
-        /* Visualização em Grid */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        /* Visualização em Grid/Cards */
+        <CardGrid>
           {filteredProjects.map((project) => {
             const progress = getTaskProgress(project);
             return (
               <Card
                 key={project.id}
-                className="cursor-pointer hover:shadow-lg transition-shadow"
+                className="cursor-pointer hover:shadow-lg transition-shadow active:scale-[0.98]"
                 onClick={() => handleView(project)}
               >
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <FolderKanban className="h-5 w-5 text-primary" />
+                <CardHeader className="pb-2 p-3 sm:p-4 sm:pb-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                      <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                        <FolderKanban className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                       </div>
-                      <div>
-                        <CardTitle className="text-base">{project.name}</CardTitle>
-                        <p className="text-sm text-muted-foreground">
+                      <div className="min-w-0">
+                        <CardTitle className="text-sm sm:text-base truncate">{project.name}</CardTitle>
+                        <p className="text-xs sm:text-sm text-muted-foreground truncate">
                           {project.client.companyName}
                         </p>
                       </div>
                     </div>
-                    <div onClick={(e) => e.stopPropagation()}>
+                    <div onClick={(e) => e.stopPropagation()} className="shrink-0">
                       {getStatusBadge(project.status)}
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-3 sm:space-y-4 p-3 sm:p-4 pt-0 sm:pt-0">
                   {project.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2">
+                    <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
                       {project.description}
                     </p>
                   )}
 
                   {/* Progress */}
                   <div>
-                    <div className="flex justify-between text-sm mb-1">
+                    <div className="flex justify-between text-xs sm:text-sm mb-1">
                       <span className="text-muted-foreground">Progresso</span>
                       <span className="font-medium">
-                        {progress.completed}/{progress.total} tarefas ({progress.percentage}%)
+                        {progress.completed}/{progress.total} ({progress.percentage}%)
                       </span>
                     </div>
-                    <Progress value={progress.percentage} className="h-2" />
+                    <Progress value={progress.percentage} className="h-1.5 sm:h-2" />
                   </div>
 
                   {/* Info Grid */}
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="grid grid-cols-2 gap-2 sm:gap-4 text-xs sm:text-sm">
                     <div>
                       <p className="text-muted-foreground">Orçamento</p>
-                      <p className="font-medium">{formatCurrency(project.budget)}</p>
+                      <p className="font-medium truncate">{formatCurrency(project.budget)}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Início</p>
@@ -590,32 +606,34 @@ const Projects: React.FC = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="flex-1"
+                      className="flex-1 h-8 sm:h-9 text-xs sm:text-sm"
                       onClick={() => handleView(project)}
                     >
-                      <Eye className="mr-2 h-4 w-4" />
+                      <Eye className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
                       Detalhes
                     </Button>
                     <Button
                       variant="outline"
-                      size="sm"
+                      size="icon"
+                      className="h-8 w-8 sm:h-9 sm:w-9"
                       onClick={() => handleEdit(project)}
                     >
-                      <Pencil className="h-4 w-4" />
+                      <Pencil className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </Button>
                     <Button
                       variant="outline"
-                      size="sm"
+                      size="icon"
+                      className="h-8 w-8 sm:h-9 sm:w-9"
                       onClick={() => handleDeleteClick(project)}
                     >
-                      <Trash2 className="h-4 w-4 text-destructive" />
+                      <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-destructive" />
                     </Button>
                   </div>
                 </CardContent>
               </Card>
             );
           })}
-        </div>
+        </CardGrid>
       )}
 
       {/* Dialogs */}
@@ -629,7 +647,7 @@ const Projects: React.FC = () => {
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir Projeto</AlertDialogTitle>
             <AlertDialogDescription>
@@ -637,18 +655,18 @@ const Projects: React.FC = () => {
               pode ser desfeita. Todas as notas e documentos associados também serão removidos.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel className="w-full sm:w-auto">Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
-              className="bg-destructive hover:bg-destructive/90"
+              className="w-full sm:w-auto bg-destructive hover:bg-destructive/90"
             >
               Excluir
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageContainer>
   );
 };
 

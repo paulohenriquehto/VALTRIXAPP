@@ -1,19 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useClients, useAuth } from '../stores/appStore';
 import { ClientService, calculateROI } from '../services';
-import { Plus, Building2, Pencil, Trash2, Loader2, RefreshCw, Zap, Users } from 'lucide-react';
+import { Plus, Building2, Pencil, Trash2, RefreshCw, Zap, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ResponsiveTable, type TableColumn } from '@/components/ui/responsive-table';
+import { PageHeader, PageContainer } from '@/components/ui/page-header';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,6 +18,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import MRRDashboard from '../components/MRRDashboard';
 import ClientDialog from '../components/ClientDialog';
@@ -162,15 +159,13 @@ const Clients: React.FC = () => {
     }
 
     // Para freelance, usar status como proxy de progresso
-    // Futuramente pode usar client.paymentProgress quando disponível
     if (client.status === 'completed') {
-      return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">🟢 Pago (100%)</Badge>;
+      return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Pago</Badge>;
     } else if (client.status === 'active') {
-      // Usar paymentStatus como fallback
       if (client.paymentStatus === 'paid') {
-        return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">🟡 Parcial</Badge>;
+        return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">Parcial</Badge>;
       } else {
-        return <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">🔴 Não Pago</Badge>;
+        return <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">Pendente</Badge>;
       }
     } else {
       return getPaymentStatusBadge(client.paymentStatus);
@@ -205,7 +200,6 @@ const Clients: React.FC = () => {
   const getROIBadge = (client: Client) => {
     const roiData = calculateROI(client);
 
-    // Se ROI é null (CAC = 0), mostrar como "Orgânico"
     if (roiData.roi === null) {
       return (
         <Badge className="bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
@@ -216,72 +210,221 @@ const Clients: React.FC = () => {
 
     const roi = roiData.roi;
 
-    // 🟢 Verde: ROI > 300%
     if (roi > 300) {
       return (
         <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-          🟢 {roi.toFixed(0)}%
+          {roi.toFixed(0)}%
         </Badge>
       );
     }
 
-    // 🟡 Amarelo: ROI 100-300%
     if (roi >= 100) {
       return (
         <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
-          🟡 {roi.toFixed(0)}%
+          {roi.toFixed(0)}%
         </Badge>
       );
     }
 
-    // 🔴 Vermelho: ROI < 100%
     return (
       <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
-        🔴 {roi.toFixed(0)}%
+        {roi.toFixed(0)}%
       </Badge>
     );
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Clientes</h1>
-        <Button onClick={handleCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Cliente
+  // Definição das colunas para o ResponsiveTable
+  const columns: TableColumn<Client>[] = [
+    {
+      accessor: 'companyName',
+      header: 'Empresa',
+      mobilePriority: 1,
+      cell: (client) => (
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+            <Building2 className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <div className="font-medium flex items-center gap-2 flex-wrap">
+              <span className="truncate">{client.companyName}</span>
+              <Badge variant={client.clientType === 'freelance' ? 'secondary' : 'default'} className="text-xs shrink-0">
+                {client.clientType === 'freelance' ? 'Freelance' : 'Recorrente'}
+              </Badge>
+            </div>
+            <div className="text-sm text-muted-foreground truncate">{client.email}</div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      accessor: 'segment',
+      header: 'Serviço',
+      mobileLabel: 'Serviço',
+      mobilePriority: 4,
+      mobileHidden: true,
+      cell: (client) => getSegmentLabel(client.segment),
+    },
+    {
+      accessor: 'contactPerson',
+      header: 'Contato',
+      mobileHidden: true,
+      cell: (client) => (
+        <div>
+          <div>{client.contactPerson}</div>
+          {client.phone && (
+            <div className="text-sm text-muted-foreground">{client.phone}</div>
+          )}
+        </div>
+      ),
+    },
+    {
+      accessor: 'monthlyValue',
+      header: filterType === 'freelance' ? 'Valor Total' : filterType === 'recurring' ? 'MRR' : 'Valor',
+      mobileLabel: 'Valor',
+      mobilePriority: 2,
+      cell: (client) => (
+        <span className="font-medium">{formatCurrency(client.monthlyValue)}</span>
+      ),
+    },
+    {
+      accessor: 'paymentDueDay',
+      header: 'Vencimento',
+      mobileHidden: true,
+      cell: (client) => formatPaymentDay(client.paymentDueDay),
+    },
+    {
+      accessor: 'paymentStatus',
+      header: 'Pagamento',
+      mobileLabel: 'Pag.',
+      mobilePriority: 3,
+      cell: (client) => getFreelancePaymentBadge(client),
+    },
+    {
+      accessor: 'acquisitionCost',
+      header: 'ROI',
+      mobileHidden: true,
+      cell: (client) => getROIBadge(client),
+    },
+    {
+      accessor: 'status',
+      header: 'Status',
+      mobilePriority: 4,
+      cell: (client) => getStatusBadge(client.status),
+    },
+  ];
+
+  // Ações do dropdown para mobile
+  const renderActions = (client: Client) => (
+    <>
+      <DropdownMenuItem onClick={() => handleEdit(client)}>
+        <Pencil className="h-4 w-4 mr-2" />
+        Editar
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        onClick={() => handleDeleteClick(client)}
+        className="text-destructive focus:text-destructive"
+      >
+        <Trash2 className="h-4 w-4 mr-2" />
+        Excluir
+      </DropdownMenuItem>
+    </>
+  );
+
+  // Card template customizado para mobile
+  const mobileCardTemplate = (client: Client) => (
+    <div className="space-y-3">
+      {/* Header com empresa e tipo */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+            <Building2 className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <div className="font-medium truncate">{client.companyName}</div>
+            <div className="text-sm text-muted-foreground truncate">{client.email}</div>
+          </div>
+        </div>
+        <Badge variant={client.clientType === 'freelance' ? 'secondary' : 'default'} className="shrink-0">
+          {client.clientType === 'freelance' ? <Zap className="h-3 w-3" /> : <RefreshCw className="h-3 w-3" />}
+        </Badge>
+      </div>
+
+      {/* Info grid */}
+      <div className="grid grid-cols-2 gap-3 text-sm">
+        <div>
+          <span className="text-muted-foreground">Valor</span>
+          <p className="font-medium">{formatCurrency(client.monthlyValue)}</p>
+        </div>
+        <div>
+          <span className="text-muted-foreground">Vencimento</span>
+          <p className="font-medium">{formatPaymentDay(client.paymentDueDay)}</p>
+        </div>
+      </div>
+
+      {/* Status badges */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {getStatusBadge(client.status)}
+        {getFreelancePaymentBadge(client)}
+        {getROIBadge(client)}
+      </div>
+
+      {/* Actions */}
+      <div className="flex gap-2 pt-2 border-t">
+        <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEdit(client)}>
+          <Pencil className="h-4 w-4 mr-1" />
+          Editar
+        </Button>
+        <Button variant="outline" size="sm" className="text-destructive" onClick={() => handleDeleteClick(client)}>
+          <Trash2 className="h-4 w-4" />
         </Button>
       </div>
+    </div>
+  );
+
+  return (
+    <PageContainer>
+      <PageHeader
+        title="Clientes"
+        actions={
+          <Button onClick={handleCreate} className="w-full sm:w-auto">
+            <Plus className="mr-2 h-4 w-4" />
+            Novo Cliente
+          </Button>
+        }
+      />
 
       <MRRDashboard metrics={metrics} />
 
-      {/* Filter Tabs */}
-      <Tabs value={filterType} onValueChange={(value) => setFilterType(value as any)} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 max-w-md">
-          <TabsTrigger value="all">
-            <Users className="h-4 w-4 mr-2" />
-            Todos ({clients.length})
-          </TabsTrigger>
-          <TabsTrigger value="recurring">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Recorrentes ({clients.filter(c => c.clientType === 'recurring').length})
-          </TabsTrigger>
-          <TabsTrigger value="freelance">
-            <Zap className="h-4 w-4 mr-2" />
-            Freelance ({clients.filter(c => c.clientType === 'freelance').length})
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      {/* Filter Tabs - Responsivo */}
+      <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
+        <Tabs value={filterType} onValueChange={(value) => setFilterType(value as any)} className="w-full">
+          <TabsList className="inline-flex w-auto min-w-full sm:min-w-0 sm:w-auto">
+            <TabsTrigger value="all" className="flex-1 sm:flex-none">
+              <Users className="h-4 w-4 mr-1 sm:mr-2" />
+              <span className="hidden xs:inline">Todos</span> ({clients.length})
+            </TabsTrigger>
+            <TabsTrigger value="recurring" className="flex-1 sm:flex-none">
+              <RefreshCw className="h-4 w-4 mr-1 sm:mr-2" />
+              <span className="hidden xs:inline">Recorrentes</span> ({clients.filter(c => c.clientType === 'recurring').length})
+            </TabsTrigger>
+            <TabsTrigger value="freelance" className="flex-1 sm:flex-none">
+              <Zap className="h-4 w-4 mr-1 sm:mr-2" />
+              <span className="hidden xs:inline">Freelance</span> ({clients.filter(c => c.clientType === 'freelance').length})
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
 
       <Card>
-        <div className="p-6 border-b">
+        <div className="p-4 sm:p-6 border-b">
           <h2 className="text-lg font-semibold">
             Lista de Clientes ({filteredClients.length})
           </h2>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="p-4 sm:p-6">
           {clients.length === 0 ? (
-            <div className="p-12 text-center">
+            <div className="py-12 text-center">
               <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
               <p className="text-muted-foreground mb-4">Nenhum cliente cadastrado.</p>
               <Button variant="outline" onClick={handleCreate}>
@@ -290,83 +433,17 @@ const Clients: React.FC = () => {
               </Button>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Empresa</TableHead>
-                  <TableHead>Tipo de Serviço</TableHead>
-                  <TableHead>Contato</TableHead>
-                  <TableHead>
-                    {filterType === 'freelance' ? 'Valor Total' : filterType === 'recurring' ? 'MRR' : 'Valor'}
-                  </TableHead>
-                  <TableHead>Vencimento</TableHead>
-                  <TableHead>Status Pag.</TableHead>
-                  <TableHead>ROI</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredClients.map((client) => (
-                  <TableRow key={client.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                          <Building2 className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <div className="font-medium flex items-center gap-2">
-                            {client.companyName}
-                            <Badge variant={client.clientType === 'freelance' ? 'secondary' : 'default'} className="text-xs">
-                              {client.clientType === 'freelance' ? (
-                                <><Zap className="h-3 w-3 mr-1" />Freelance</>
-                              ) : (
-                                <><RefreshCw className="h-3 w-3 mr-1" />Recorrente</>
-                              )}
-                            </Badge>
-                          </div>
-                          <div className="text-sm text-muted-foreground">{client.email}</div>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>{getSegmentLabel(client.segment)}</TableCell>
-                    <TableCell>
-                      <div>{client.contactPerson}</div>
-                      {client.phone && (
-                        <div className="text-sm text-muted-foreground">{client.phone}</div>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {formatCurrency(client.monthlyValue)}
-                    </TableCell>
-                    <TableCell>{formatPaymentDay(client.paymentDueDay)}</TableCell>
-                    <TableCell>{getFreelancePaymentBadge(client)}</TableCell>
-                    <TableCell>{getROIBadge(client)}</TableCell>
-                    <TableCell>{getStatusBadge(client.status)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEdit(client)}
-                          title="Editar cliente"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteClick(client)}
-                          title="Excluir cliente"
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <ResponsiveTable
+              columns={columns}
+              data={filteredClients}
+              keyExtractor={(client) => client.id}
+              onRowClick={handleEdit}
+              actions={renderActions}
+              mobileCardTemplate={mobileCardTemplate}
+              isLoading={isLoading}
+              showViewToggle={true}
+              defaultView="auto"
+            />
           )}
         </div>
       </Card>
@@ -398,7 +475,7 @@ const Clients: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageContainer>
   );
 };
 

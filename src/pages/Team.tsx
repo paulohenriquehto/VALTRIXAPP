@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTeam, useAuth } from '../stores/appStore';
 import { TeamService } from '../services';
-import { Plus, Users, Network, Mail, Copy, Check, Pencil, Trash2, Link2, UserPlus, Shield, X } from 'lucide-react';
+import { Plus, Users, Network, Mail, Copy, Check, Pencil, Trash2, Link2, UserPlus, Shield, X, MoreVertical, Building2, Briefcase, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -40,10 +40,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getRoleLabel, getDepartmentLabel } from '../utils/permissions';
 import { toast } from 'sonner';
+import { PageHeader, PageContainer, PageAction } from '@/components/ui/page-header';
+import { ResponsiveGrid, CardGrid } from '@/components/ui/responsive-grid';
+import { useIsMobile } from '@/hooks/use-mobile';
 import type { TeamMember, TeamRole, Department, TeamInvite } from '../types';
 
 const Team: React.FC = () => {
@@ -58,6 +67,7 @@ const Team: React.FC = () => {
     cancelInvite
   } = useTeam();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
   const [roleFilter, setRoleFilter] = useState<string>('all');
@@ -347,161 +357,218 @@ const Team: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <PageContainer>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Equipe</h1>
-          <p className="text-muted-foreground mt-1">
-            Gerencie membros, convites e permissões
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleGenerateInviteLink}>
-            <Link2 className="mr-2 h-4 w-4" />
-            Link de Convite
-          </Button>
-          <Button onClick={() => setInviteDialogOpen(true)}>
-            <UserPlus className="mr-2 h-4 w-4" />
-            Convidar Membro
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Equipe"
+        description="Gerencie membros, convites e permissões"
+        actions={
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <Button variant="outline" onClick={handleGenerateInviteLink} className="w-full sm:w-auto">
+              <Link2 className="mr-2 h-4 w-4" />
+              <span className="sm:inline">Link</span>
+            </Button>
+            <Button onClick={() => setInviteDialogOpen(true)} className="w-full sm:w-auto">
+              <UserPlus className="mr-2 h-4 w-4" />
+              <span className="sm:inline">Convidar</span>
+            </Button>
+          </div>
+        }
+      />
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-6">
+      <ResponsiveGrid preset="three">
+        <Card className="p-4 sm:p-6">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Total de Membros</p>
-              <h3 className="text-2xl font-bold mt-2">{stats.total}</h3>
+              <p className="text-xs sm:text-sm font-medium text-muted-foreground">Total de Membros</p>
+              <h3 className="text-xl sm:text-2xl font-bold mt-1 sm:mt-2">{stats.total}</h3>
             </div>
-            <div className="p-3 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-              <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            <div className="p-2 sm:p-3 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+              <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 dark:text-blue-400" />
             </div>
           </div>
         </Card>
-        <Card className="p-6">
+        <Card className="p-4 sm:p-6">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Membros Ativos</p>
-              <h3 className="text-2xl font-bold mt-2">{stats.active}</h3>
+              <p className="text-xs sm:text-sm font-medium text-muted-foreground">Membros Ativos</p>
+              <h3 className="text-xl sm:text-2xl font-bold mt-1 sm:mt-2">{stats.active}</h3>
             </div>
-            <div className="p-3 rounded-lg bg-green-100 dark:bg-green-900/30">
-              <Users className="h-5 w-5 text-green-600 dark:text-green-400" />
+            <div className="p-2 sm:p-3 rounded-lg bg-green-100 dark:bg-green-900/30">
+              <Users className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 dark:text-green-400" />
             </div>
           </div>
         </Card>
-        <Card className="p-6">
+        <Card className="p-4 sm:p-6">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Convites Pendentes</p>
-              <h3 className="text-2xl font-bold mt-2">{stats.pending}</h3>
+              <p className="text-xs sm:text-sm font-medium text-muted-foreground">Convites Pendentes</p>
+              <h3 className="text-xl sm:text-2xl font-bold mt-1 sm:mt-2">{stats.pending}</h3>
             </div>
-            <div className="p-3 rounded-lg bg-yellow-100 dark:bg-yellow-900/30">
-              <Mail className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+            <div className="p-2 sm:p-3 rounded-lg bg-yellow-100 dark:bg-yellow-900/30">
+              <Mail className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-600 dark:text-yellow-400" />
             </div>
           </div>
         </Card>
-      </div>
+      </ResponsiveGrid>
 
       {/* Tabs */}
       <Tabs defaultValue="list" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="list">
-            <Users className="mr-2 h-4 w-4" />
-            Lista
+        <TabsList className="w-full sm:w-auto grid grid-cols-3 sm:inline-flex">
+          <TabsTrigger value="list" className="text-xs sm:text-sm">
+            <Users className="mr-1 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span className="hidden xs:inline">Lista</span>
           </TabsTrigger>
-          <TabsTrigger value="chart">
-            <Network className="mr-2 h-4 w-4" />
-            Organograma
+          <TabsTrigger value="chart" className="text-xs sm:text-sm">
+            <Network className="mr-1 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span className="hidden xs:inline">Org</span>
           </TabsTrigger>
-          <TabsTrigger value="invites">
-            <Mail className="mr-2 h-4 w-4" />
-            Convites ({stats.pending})
+          <TabsTrigger value="invites" className="text-xs sm:text-sm">
+            <Mail className="mr-1 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span className="hidden xs:inline">Convites</span>
+            <span className="ml-1">({stats.pending})</span>
           </TabsTrigger>
         </TabsList>
 
         {/* Aba Lista */}
         <TabsContent value="list" className="space-y-4">
           {/* Filtros */}
-          <Card className="p-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="p-3 sm:p-4">
+            <div className="flex flex-col gap-3 sm:gap-4">
               <Input
                 placeholder="Buscar por nome ou email..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
-              <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Departamento" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os Departamentos</SelectItem>
-                  <SelectItem value="engineering">Engenharia</SelectItem>
-                  <SelectItem value="product">Produto</SelectItem>
-                  <SelectItem value="design">Design</SelectItem>
-                  <SelectItem value="marketing">Marketing</SelectItem>
-                  <SelectItem value="sales">Vendas</SelectItem>
-                  <SelectItem value="customer_success">Customer Success</SelectItem>
-                  <SelectItem value="finance">Financeiro</SelectItem>
-                  <SelectItem value="hr">RH</SelectItem>
-                  <SelectItem value="operations">Operações</SelectItem>
-                  <SelectItem value="other">Outro</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={roleFilter} onValueChange={setRoleFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Cargo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os Cargos</SelectItem>
-                  <SelectItem value="ceo">CEO</SelectItem>
-                  <SelectItem value="c_level">C-Level</SelectItem>
-                  <SelectItem value="director">Diretor</SelectItem>
-                  <SelectItem value="manager">Gerente</SelectItem>
-                  <SelectItem value="team_lead">Tech Lead</SelectItem>
-                  <SelectItem value="senior">Sênior</SelectItem>
-                  <SelectItem value="mid_level">Pleno</SelectItem>
-                  <SelectItem value="junior">Júnior</SelectItem>
-                  <SelectItem value="intern">Estagiário</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os Status</SelectItem>
-                  <SelectItem value="active">Ativo</SelectItem>
-                  <SelectItem value="inactive">Inativo</SelectItem>
-                  <SelectItem value="on_leave">Afastado</SelectItem>
-                  <SelectItem value="terminated">Desligado</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
+                <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                  <SelectTrigger className="text-xs sm:text-sm">
+                    <SelectValue placeholder="Depto" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="engineering">Engenharia</SelectItem>
+                    <SelectItem value="product">Produto</SelectItem>
+                    <SelectItem value="design">Design</SelectItem>
+                    <SelectItem value="marketing">Marketing</SelectItem>
+                    <SelectItem value="sales">Vendas</SelectItem>
+                    <SelectItem value="customer_success">CS</SelectItem>
+                    <SelectItem value="finance">Financeiro</SelectItem>
+                    <SelectItem value="hr">RH</SelectItem>
+                    <SelectItem value="operations">Operações</SelectItem>
+                    <SelectItem value="other">Outro</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                  <SelectTrigger className="text-xs sm:text-sm">
+                    <SelectValue placeholder="Cargo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="ceo">CEO</SelectItem>
+                    <SelectItem value="c_level">C-Level</SelectItem>
+                    <SelectItem value="director">Diretor</SelectItem>
+                    <SelectItem value="manager">Gerente</SelectItem>
+                    <SelectItem value="team_lead">Tech Lead</SelectItem>
+                    <SelectItem value="senior">Sênior</SelectItem>
+                    <SelectItem value="mid_level">Pleno</SelectItem>
+                    <SelectItem value="junior">Júnior</SelectItem>
+                    <SelectItem value="intern">Estagiário</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="text-xs sm:text-sm col-span-2 sm:col-span-1">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="active">Ativo</SelectItem>
+                    <SelectItem value="inactive">Inativo</SelectItem>
+                    <SelectItem value="on_leave">Afastado</SelectItem>
+                    <SelectItem value="terminated">Desligado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </Card>
 
-          {/* Tabela */}
+          {/* Lista de Membros */}
           <Card>
             {filteredMembers.length === 0 ? (
-              <div className="p-12 text-center">
-                <Users className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-                <p className="text-muted-foreground mb-4">Nenhum membro encontrado.</p>
-                <Button variant="outline" onClick={() => setInviteDialogOpen(true)}>
+              <div className="p-8 sm:p-12 text-center">
+                <Users className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3" />
+                <p className="text-muted-foreground mb-4 text-sm sm:text-base">Nenhum membro encontrado.</p>
+                <Button variant="outline" onClick={() => setInviteDialogOpen(true)} className="w-full sm:w-auto">
                   <Plus className="mr-2 h-4 w-4" />
                   Convidar primeiro membro
                 </Button>
               </div>
+            ) : isMobile ? (
+              /* Cards para Mobile */
+              <CardGrid className="p-3">
+                {filteredMembers.map((member) => (
+                  <Card key={member.id} className="p-3 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Avatar className="h-10 w-10 shrink-0">
+                          <AvatarImage src={member.user.avatarUrl} alt={member.user.fullName} />
+                          <AvatarFallback>{getInitials(member.user.fullName)}</AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <div className="font-medium text-sm truncate">{member.user.fullName}</div>
+                          <div className="text-xs text-muted-foreground truncate">{member.user.email}</div>
+                        </div>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEditMember(member)}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleDeleteMember(member)} className="text-destructive">
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Remover
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5">
+                      <Badge className={getRoleBadgeColor(member.role) + " text-xs"}>
+                        {getRoleLabel(member.role)}
+                      </Badge>
+                      {getStatusBadge(member.status)}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <Building2 className="h-3.5 w-3.5" />
+                        <span className="truncate">{getDepartmentLabel(member.department)}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <Calendar className="h-3.5 w-3.5" />
+                        <span>{new Date(member.hireDate).toLocaleDateString('pt-BR')}</span>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </CardGrid>
             ) : (
+              /* Tabela para Desktop */
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Membro</TableHead>
                     <TableHead>Cargo</TableHead>
-                    <TableHead>Departamento</TableHead>
+                    <TableHead className="hidden md:table-cell">Departamento</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Data de Entrada</TableHead>
+                    <TableHead className="hidden lg:table-cell">Data de Entrada</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -509,14 +576,14 @@ const Team: React.FC = () => {
                   {filteredMembers.map((member) => (
                     <TableRow key={member.id}>
                       <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10">
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <Avatar className="h-8 w-8 sm:h-10 sm:w-10">
                             <AvatarImage src={member.user.avatarUrl} alt={member.user.fullName} />
                             <AvatarFallback>{getInitials(member.user.fullName)}</AvatarFallback>
                           </Avatar>
-                          <div>
-                            <div className="font-medium">{member.user.fullName}</div>
-                            <div className="text-sm text-muted-foreground">{member.user.email}</div>
+                          <div className="min-w-0">
+                            <div className="font-medium truncate">{member.user.fullName}</div>
+                            <div className="text-sm text-muted-foreground truncate">{member.user.email}</div>
                           </div>
                         </div>
                       </TableCell>
@@ -525,28 +592,29 @@ const Team: React.FC = () => {
                           {getRoleLabel(member.role)}
                         </Badge>
                       </TableCell>
-                      <TableCell>{getDepartmentLabel(member.department)}</TableCell>
+                      <TableCell className="hidden md:table-cell">{getDepartmentLabel(member.department)}</TableCell>
                       <TableCell>{getStatusBadge(member.status)}</TableCell>
-                      <TableCell>
+                      <TableCell className="hidden lg:table-cell">
                         {new Date(member.hireDate).toLocaleDateString('pt-BR')}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditMember(member)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteMember(member)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleEditMember(member)}>
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDeleteMember(member)} className="text-destructive">
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Remover
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -558,10 +626,10 @@ const Team: React.FC = () => {
 
         {/* Aba Organograma */}
         <TabsContent value="chart">
-          <Card className="p-12 text-center">
-            <Network className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-            <h3 className="font-semibold mb-2">Organograma</h3>
-            <p className="text-muted-foreground">
+          <Card className="p-8 sm:p-12 text-center">
+            <Network className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3" />
+            <h3 className="font-semibold mb-2 text-sm sm:text-base">Organograma</h3>
+            <p className="text-muted-foreground text-xs sm:text-sm">
               Visualização hierárquica da equipe em desenvolvimento...
             </p>
           </Card>
@@ -571,26 +639,73 @@ const Team: React.FC = () => {
         <TabsContent value="invites">
           <Card>
             {teamInvites.length === 0 ? (
-              <div className="p-12 text-center">
-                <Mail className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-                <h3 className="font-semibold mb-2">Nenhum Convite Pendente</h3>
-                <p className="text-muted-foreground mb-4">
+              <div className="p-8 sm:p-12 text-center">
+                <Mail className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3" />
+                <h3 className="font-semibold mb-2 text-sm sm:text-base">Nenhum Convite Pendente</h3>
+                <p className="text-muted-foreground mb-4 text-xs sm:text-sm">
                   Convide novos membros para sua equipe
                 </p>
-                <Button onClick={() => setInviteDialogOpen(true)}>
+                <Button onClick={() => setInviteDialogOpen(true)} className="w-full sm:w-auto">
                   <UserPlus className="mr-2 h-4 w-4" />
                   Enviar Convite
                 </Button>
               </div>
+            ) : isMobile ? (
+              /* Cards de Convites para Mobile */
+              <CardGrid className="p-3">
+                {teamInvites.map((invite) => (
+                  <Card key={invite.id} className="p-3 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-medium text-sm truncate">{invite.email}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(invite.createdAt).toLocaleDateString('pt-BR')}
+                        </div>
+                      </div>
+                      {getInviteStatusBadge(invite.status)}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Badge className={getRoleBadgeColor(invite.role) + " text-xs"}>
+                        {getRoleLabel(invite.role)}
+                      </Badge>
+                      <Badge variant="outline" className="text-xs">
+                        {getDepartmentLabel(invite.department)}
+                      </Badge>
+                    </div>
+                    {invite.status === 'pending' && (
+                      <div className="flex gap-2 pt-2 border-t">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 h-8 text-xs"
+                          onClick={() => handleResendInvite(invite)}
+                        >
+                          <Mail className="h-3.5 w-3.5 mr-1" />
+                          Reenviar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleCancelInvite(invite)}
+                        >
+                          <X className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      </div>
+                    )}
+                  </Card>
+                ))}
+              </CardGrid>
             ) : (
+              /* Tabela de Convites para Desktop */
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Email</TableHead>
                     <TableHead>Cargo</TableHead>
-                    <TableHead>Departamento</TableHead>
+                    <TableHead className="hidden md:table-cell">Departamento</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Enviado em</TableHead>
+                    <TableHead className="hidden sm:table-cell">Enviado em</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -603,33 +718,31 @@ const Team: React.FC = () => {
                           {getRoleLabel(invite.role)}
                         </Badge>
                       </TableCell>
-                      <TableCell>{getDepartmentLabel(invite.department)}</TableCell>
+                      <TableCell className="hidden md:table-cell">{getDepartmentLabel(invite.department)}</TableCell>
                       <TableCell>{getInviteStatusBadge(invite.status)}</TableCell>
-                      <TableCell>
+                      <TableCell className="hidden sm:table-cell">
                         {new Date(invite.createdAt).toLocaleDateString('pt-BR')}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          {invite.status === 'pending' && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleResendInvite(invite)}
-                              >
-                                <Mail className="h-4 w-4 mr-1" />
+                        {invite.status === 'pending' && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleResendInvite(invite)}>
+                                <Mail className="mr-2 h-4 w-4" />
                                 Reenviar
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleCancelInvite(invite)}
-                              >
-                                <X className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleCancelInvite(invite)} className="text-destructive">
+                                <X className="mr-2 h-4 w-4" />
+                                Cancelar
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -642,17 +755,17 @@ const Team: React.FC = () => {
 
       {/* Dialog: Convidar Membro */}
       <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Convidar Novo Membro</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs sm:text-sm">
               Envie um convite por email para adicionar um novo membro à equipe
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-2 sm:py-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="text-sm">Email</Label>
               <Input
                 id="email"
                 type="email"
@@ -662,53 +775,55 @@ const Team: React.FC = () => {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="role">Cargo</Label>
-              <Select value={inviteRole} onValueChange={(value) => setInviteRole(value as TeamRole)}>
-                <SelectTrigger id="role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="intern">Estagiário</SelectItem>
-                  <SelectItem value="junior">Júnior</SelectItem>
-                  <SelectItem value="mid_level">Pleno</SelectItem>
-                  <SelectItem value="senior">Sênior</SelectItem>
-                  <SelectItem value="team_lead">Tech Lead</SelectItem>
-                  <SelectItem value="manager">Gerente</SelectItem>
-                  <SelectItem value="director">Diretor</SelectItem>
-                  <SelectItem value="c_level">C-Level</SelectItem>
-                  <SelectItem value="ceo">CEO</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="role" className="text-sm">Cargo</Label>
+                <Select value={inviteRole} onValueChange={(value) => setInviteRole(value as TeamRole)}>
+                  <SelectTrigger id="role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="intern">Estagiário</SelectItem>
+                    <SelectItem value="junior">Júnior</SelectItem>
+                    <SelectItem value="mid_level">Pleno</SelectItem>
+                    <SelectItem value="senior">Sênior</SelectItem>
+                    <SelectItem value="team_lead">Tech Lead</SelectItem>
+                    <SelectItem value="manager">Gerente</SelectItem>
+                    <SelectItem value="director">Diretor</SelectItem>
+                    <SelectItem value="c_level">C-Level</SelectItem>
+                    <SelectItem value="ceo">CEO</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="department">Departamento</Label>
-              <Select value={inviteDepartment} onValueChange={(value) => setInviteDepartment(value as Department)}>
-                <SelectTrigger id="department">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="engineering">Engenharia</SelectItem>
-                  <SelectItem value="product">Produto</SelectItem>
-                  <SelectItem value="design">Design</SelectItem>
-                  <SelectItem value="marketing">Marketing</SelectItem>
-                  <SelectItem value="sales">Vendas</SelectItem>
-                  <SelectItem value="customer_success">Customer Success</SelectItem>
-                  <SelectItem value="finance">Financeiro</SelectItem>
-                  <SelectItem value="hr">RH</SelectItem>
-                  <SelectItem value="operations">Operações</SelectItem>
-                  <SelectItem value="other">Outro</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <Label htmlFor="department" className="text-sm">Departamento</Label>
+                <Select value={inviteDepartment} onValueChange={(value) => setInviteDepartment(value as Department)}>
+                  <SelectTrigger id="department">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="engineering">Engenharia</SelectItem>
+                    <SelectItem value="product">Produto</SelectItem>
+                    <SelectItem value="design">Design</SelectItem>
+                    <SelectItem value="marketing">Marketing</SelectItem>
+                    <SelectItem value="sales">Vendas</SelectItem>
+                    <SelectItem value="customer_success">CS</SelectItem>
+                    <SelectItem value="finance">Financeiro</SelectItem>
+                    <SelectItem value="hr">RH</SelectItem>
+                    <SelectItem value="operations">Operações</SelectItem>
+                    <SelectItem value="other">Outro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setInviteDialogOpen(false)}>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setInviteDialogOpen(false)} className="w-full sm:w-auto">
               Cancelar
             </Button>
-            <Button onClick={handleSendInvite}>
+            <Button onClick={handleSendInvite} className="w-full sm:w-auto">
               <Mail className="mr-2 h-4 w-4" />
               Enviar Convite
             </Button>
@@ -718,18 +833,18 @@ const Team: React.FC = () => {
 
       {/* Dialog: Link de Convite */}
       <Dialog open={inviteLinkDialogOpen} onOpenChange={setInviteLinkDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Link de Convite</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs sm:text-sm">
               Compartilhe este link para convidar membros para sua equipe
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-2 sm:py-4">
             <div className="flex items-center gap-2">
-              <Input value={inviteLink} readOnly className="font-mono text-sm" />
-              <Button onClick={handleCopyLink} size="icon" variant="outline">
+              <Input value={inviteLink} readOnly className="font-mono text-xs sm:text-sm" />
+              <Button onClick={handleCopyLink} size="icon" variant="outline" className="shrink-0">
                 {linkCopied ? (
                   <Check className="h-4 w-4 text-green-500" />
                 ) : (
@@ -738,15 +853,15 @@ const Team: React.FC = () => {
               </Button>
             </div>
 
-            <div className="bg-muted p-4 rounded-lg">
+            <div className="bg-muted p-3 sm:p-4 rounded-lg">
               <div className="flex items-start gap-2">
-                <Shield className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div className="text-sm">
+                <Shield className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground mt-0.5 shrink-0" />
+                <div className="text-xs sm:text-sm">
                   <p className="font-medium mb-1">Informações de Segurança</p>
                   <ul className="text-muted-foreground space-y-1">
                     <li>• Este link expira em 7 dias</li>
                     <li>• Pode ser usado múltiplas vezes</li>
-                    <li>• Você pode revogar este link a qualquer momento</li>
+                    <li>• Você pode revogar a qualquer momento</li>
                   </ul>
                 </div>
               </div>
@@ -754,7 +869,7 @@ const Team: React.FC = () => {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setInviteLinkDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setInviteLinkDialogOpen(false)} className="w-full sm:w-auto">
               Fechar
             </Button>
           </DialogFooter>
@@ -763,29 +878,29 @@ const Team: React.FC = () => {
 
       {/* Dialog: Editar Membro */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Editar Membro</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs sm:text-sm">
               Atualize as informações do membro da equipe
             </DialogDescription>
           </DialogHeader>
 
           {selectedMember && (
-            <div className="space-y-4 py-4">
+            <div className="space-y-4 py-2 sm:py-4">
               <div className="flex items-center gap-3 pb-4 border-b">
-                <Avatar className="h-12 w-12">
+                <Avatar className="h-10 w-10 sm:h-12 sm:w-12">
                   <AvatarImage src={selectedMember.user.avatarUrl} />
                   <AvatarFallback>{getInitials(selectedMember.user.fullName)}</AvatarFallback>
                 </Avatar>
-                <div>
-                  <div className="font-medium">{selectedMember.user.fullName}</div>
-                  <div className="text-sm text-muted-foreground">{selectedMember.user.email}</div>
+                <div className="min-w-0">
+                  <div className="font-medium text-sm sm:text-base truncate">{selectedMember.user.fullName}</div>
+                  <div className="text-xs sm:text-sm text-muted-foreground truncate">{selectedMember.user.email}</div>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit-role">Cargo</Label>
+                <Label htmlFor="edit-role" className="text-sm">Cargo</Label>
                 <Select value={editRole} onValueChange={(value) => setEditRole(value as TeamRole)}>
                   <SelectTrigger id="edit-role">
                     <SelectValue />
@@ -804,49 +919,51 @@ const Team: React.FC = () => {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="edit-department">Departamento</Label>
-                <Select value={editDepartment} onValueChange={(value) => setEditDepartment(value as Department)}>
-                  <SelectTrigger id="edit-department">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="engineering">Engenharia</SelectItem>
-                    <SelectItem value="product">Produto</SelectItem>
-                    <SelectItem value="design">Design</SelectItem>
-                    <SelectItem value="marketing">Marketing</SelectItem>
-                    <SelectItem value="sales">Vendas</SelectItem>
-                    <SelectItem value="customer_success">Customer Success</SelectItem>
-                    <SelectItem value="finance">Financeiro</SelectItem>
-                    <SelectItem value="hr">RH</SelectItem>
-                    <SelectItem value="operations">Operações</SelectItem>
-                    <SelectItem value="other">Outro</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-department" className="text-sm">Departamento</Label>
+                  <Select value={editDepartment} onValueChange={(value) => setEditDepartment(value as Department)}>
+                    <SelectTrigger id="edit-department">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="engineering">Engenharia</SelectItem>
+                      <SelectItem value="product">Produto</SelectItem>
+                      <SelectItem value="design">Design</SelectItem>
+                      <SelectItem value="marketing">Marketing</SelectItem>
+                      <SelectItem value="sales">Vendas</SelectItem>
+                      <SelectItem value="customer_success">CS</SelectItem>
+                      <SelectItem value="finance">Financeiro</SelectItem>
+                      <SelectItem value="hr">RH</SelectItem>
+                      <SelectItem value="operations">Operações</SelectItem>
+                      <SelectItem value="other">Outro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="edit-status">Status</Label>
-                <Select value={editStatus} onValueChange={(value) => setEditStatus(value as TeamMember['status'])}>
-                  <SelectTrigger id="edit-status">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Ativo</SelectItem>
-                    <SelectItem value="inactive">Inativo</SelectItem>
-                    <SelectItem value="on_leave">Afastado</SelectItem>
-                    <SelectItem value="terminated">Desligado</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-status" className="text-sm">Status</Label>
+                  <Select value={editStatus} onValueChange={(value) => setEditStatus(value as TeamMember['status'])}>
+                    <SelectTrigger id="edit-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Ativo</SelectItem>
+                      <SelectItem value="inactive">Inativo</SelectItem>
+                      <SelectItem value="on_leave">Afastado</SelectItem>
+                      <SelectItem value="terminated">Desligado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           )}
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)} className="w-full sm:w-auto">
               Cancelar
             </Button>
-            <Button onClick={handleSaveEdit}>
+            <Button onClick={handleSaveEdit} className="w-full sm:w-auto">
               Salvar Alterações
             </Button>
           </DialogFooter>
@@ -855,23 +972,23 @@ const Team: React.FC = () => {
 
       {/* AlertDialog: Remover Membro */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle>Remover Membro</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogDescription className="text-xs sm:text-sm">
               Tem certeza que deseja remover <strong>{selectedMember?.user.fullName}</strong> da equipe?
               Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive hover:bg-destructive/90">
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel className="w-full sm:w-auto">Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete} className="w-full sm:w-auto bg-destructive hover:bg-destructive/90">
               Remover
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageContainer>
   );
 };
 

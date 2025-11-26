@@ -164,7 +164,7 @@ export interface DashboardStats {
 // Tipos de notificação
 export interface Notification {
   id: string;
-  type: 'info' | 'success' | 'warning' | 'error';
+  type: 'info' | 'success' | 'warning' | 'error' | 'task_due' | 'task_overdue' | 'task_assigned' | 'task_completed' | 'ai_insight';
   title: string;
   message: string;
   read: boolean;
