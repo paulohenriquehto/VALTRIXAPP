@@ -22,6 +22,7 @@ import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 import Pricing from './pages/Pricing';
 import Pomodoro from './pages/Pomodoro';
+import Templates from './pages/Templates';
 import './index.css';
 
 function App() {
@@ -100,6 +101,7 @@ function App() {
             <Route path="projects" element={<Projects />} />
             <Route path="projects/:id" element={<ProjectDetail />} />
             <Route path="tags" element={<Tags />} />
+            <Route path="templates" element={<Templates />} />
             <Route path="team" element={<Team />} />
             <Route path="analytics" element={<Analytics />} />
             <Route path="pomodoro" element={<Pomodoro />} />

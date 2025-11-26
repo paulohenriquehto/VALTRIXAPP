@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useClients, useAuth } from '../stores/appStore';
-import { ClientService } from '../services';
-import { Plus, Building2, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { ClientService, calculateROI } from '../services';
+import { Plus, Building2, Pencil, Trash2, Loader2, RefreshCw, Zap, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Table,
   TableBody,
@@ -38,6 +39,7 @@ const Clients: React.FC = () => {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [filterType, setFilterType] = useState<'all' | 'recurring' | 'freelance'>('all');
 
   // Carregar clientes do Supabase
   useEffect(() => {
@@ -61,6 +63,11 @@ const Clients: React.FC = () => {
   };
 
   const metrics = useMemo(() => getMRRMetrics(), [clients, getMRRMetrics]);
+
+  const filteredClients = useMemo(() => {
+    if (filterType === 'all') return clients;
+    return clients.filter(c => c.clientType === filterType);
+  }, [clients, filterType]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -148,18 +155,91 @@ const Clients: React.FC = () => {
     return <Badge className={variant.className}>{variant.label}</Badge>;
   };
 
+  // Badge de progresso de pagamento para clientes freelance
+  const getFreelancePaymentBadge = (client: Client) => {
+    if (client.clientType !== 'freelance') {
+      return getPaymentStatusBadge(client.paymentStatus);
+    }
+
+    // Para freelance, usar status como proxy de progresso
+    // Futuramente pode usar client.paymentProgress quando disponível
+    if (client.status === 'completed') {
+      return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">🟢 Pago (100%)</Badge>;
+    } else if (client.status === 'active') {
+      // Usar paymentStatus como fallback
+      if (client.paymentStatus === 'paid') {
+        return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">🟡 Parcial</Badge>;
+      } else {
+        return <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">🔴 Não Pago</Badge>;
+      }
+    } else {
+      return getPaymentStatusBadge(client.paymentStatus);
+    }
+  };
+
   const getSegmentLabel = (segment: Client['segment']) => {
     const labels: Record<Client['segment'], string> = {
-      technology: 'Tecnologia',
-      healthcare: 'Saúde',
-      education: 'Educação',
-      finance: 'Finanças',
-      retail: 'Varejo',
-      manufacturing: 'Manufatura',
-      services: 'Serviços',
+      web_development: 'Desenvolvimento Web',
+      software_development: 'Desenvolvimento de Software',
+      bug_fixing: 'Correção de Bugs',
+      landing_pages: 'Landing Pages',
+      microsites: 'Microsites',
+      web_design: 'Web Design',
+      ui_ux_design: 'UI/UX Design',
+      chatbot: 'Chatbot',
+      website_automation: 'Automação de Sites',
+      n8n_automation: 'Automação com n8n',
+      defy_automation: 'Automação com DeFy',
+      agno_automation: 'Automação com agno',
+      langchain_automation: 'Automação com LangChain',
+      traffic_management: 'Gestão de Tráfego',
+      seo: 'SEO',
+      consulting: 'Consultoria',
+      maintenance: 'Manutenção',
       other: 'Outro',
     };
     return labels[segment];
+  };
+
+  // Badge de ROI com cores baseado no retorno
+  const getROIBadge = (client: Client) => {
+    const roiData = calculateROI(client);
+
+    // Se ROI é null (CAC = 0), mostrar como "Orgânico"
+    if (roiData.roi === null) {
+      return (
+        <Badge className="bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+          Orgânico
+        </Badge>
+      );
+    }
+
+    const roi = roiData.roi;
+
+    // 🟢 Verde: ROI > 300%
+    if (roi > 300) {
+      return (
+        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+          🟢 {roi.toFixed(0)}%
+        </Badge>
+      );
+    }
+
+    // 🟡 Amarelo: ROI 100-300%
+    if (roi >= 100) {
+      return (
+        <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+          🟡 {roi.toFixed(0)}%
+        </Badge>
+      );
+    }
+
+    // 🔴 Vermelho: ROI < 100%
+    return (
+      <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+        🔴 {roi.toFixed(0)}%
+      </Badge>
+    );
   };
 
   return (
@@ -174,10 +254,28 @@ const Clients: React.FC = () => {
 
       <MRRDashboard metrics={metrics} />
 
+      {/* Filter Tabs */}
+      <Tabs value={filterType} onValueChange={(value) => setFilterType(value as any)} className="w-full">
+        <TabsList className="grid w-full grid-cols-3 max-w-md">
+          <TabsTrigger value="all">
+            <Users className="h-4 w-4 mr-2" />
+            Todos ({clients.length})
+          </TabsTrigger>
+          <TabsTrigger value="recurring">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Recorrentes ({clients.filter(c => c.clientType === 'recurring').length})
+          </TabsTrigger>
+          <TabsTrigger value="freelance">
+            <Zap className="h-4 w-4 mr-2" />
+            Freelance ({clients.filter(c => c.clientType === 'freelance').length})
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       <Card>
         <div className="p-6 border-b">
           <h2 className="text-lg font-semibold">
-            Lista de Clientes ({clients.length})
+            Lista de Clientes ({filteredClients.length})
           </h2>
         </div>
 
@@ -196,17 +294,20 @@ const Clients: React.FC = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Empresa</TableHead>
-                  <TableHead>Segmento</TableHead>
+                  <TableHead>Tipo de Serviço</TableHead>
                   <TableHead>Contato</TableHead>
-                  <TableHead>MRR</TableHead>
+                  <TableHead>
+                    {filterType === 'freelance' ? 'Valor Total' : filterType === 'recurring' ? 'MRR' : 'Valor'}
+                  </TableHead>
                   <TableHead>Vencimento</TableHead>
                   <TableHead>Status Pag.</TableHead>
+                  <TableHead>ROI</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {clients.map((client) => (
+                {filteredClients.map((client) => (
                   <TableRow key={client.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -214,7 +315,16 @@ const Clients: React.FC = () => {
                           <Building2 className="h-5 w-5 text-primary" />
                         </div>
                         <div>
-                          <div className="font-medium">{client.companyName}</div>
+                          <div className="font-medium flex items-center gap-2">
+                            {client.companyName}
+                            <Badge variant={client.clientType === 'freelance' ? 'secondary' : 'default'} className="text-xs">
+                              {client.clientType === 'freelance' ? (
+                                <><Zap className="h-3 w-3 mr-1" />Freelance</>
+                              ) : (
+                                <><RefreshCw className="h-3 w-3 mr-1" />Recorrente</>
+                              )}
+                            </Badge>
+                          </div>
                           <div className="text-sm text-muted-foreground">{client.email}</div>
                         </div>
                       </div>
@@ -230,7 +340,8 @@ const Clients: React.FC = () => {
                       {formatCurrency(client.monthlyValue)}
                     </TableCell>
                     <TableCell>{formatPaymentDay(client.paymentDueDay)}</TableCell>
-                    <TableCell>{getPaymentStatusBadge(client.paymentStatus)}</TableCell>
+                    <TableCell>{getFreelancePaymentBadge(client)}</TableCell>
+                    <TableCell>{getROIBadge(client)}</TableCell>
                     <TableCell>{getStatusBadge(client.status)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">

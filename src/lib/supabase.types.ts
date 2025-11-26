@@ -212,6 +212,69 @@ export type Database = {
           },
         ]
       }
+      client_onboarding_status: {
+        Row: {
+          client_id: string
+          completed_at: string | null
+          completed_tasks: number | null
+          created_at: string
+          id: string
+          paused_at: string | null
+          pending_tasks: number | null
+          progress_percentage: number | null
+          service_template_id: string
+          started_at: string | null
+          status: string | null
+          total_tasks: number | null
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          completed_at?: string | null
+          completed_tasks?: number | null
+          created_at?: string
+          id?: string
+          paused_at?: string | null
+          pending_tasks?: number | null
+          progress_percentage?: number | null
+          service_template_id: string
+          started_at?: string | null
+          status?: string | null
+          total_tasks?: number | null
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          completed_at?: string | null
+          completed_tasks?: number | null
+          created_at?: string
+          id?: string
+          paused_at?: string | null
+          pending_tasks?: number | null
+          progress_percentage?: number | null
+          service_template_id?: string
+          started_at?: string | null
+          status?: string | null
+          total_tasks?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_onboarding_status_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_onboarding_status_service_template_id_fkey"
+            columns: ["service_template_id"]
+            isOneToOne: false
+            referencedRelation: "service_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comments: {
         Row: {
           author_id: string | null
@@ -489,6 +552,42 @@ export type Database = {
           },
         ]
       }
+      service_templates: {
+        Row: {
+          color: string | null
+          created_at: string
+          description: string | null
+          icon: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          service_type: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          service_type: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          service_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tags: {
         Row: {
           color: string
@@ -633,6 +732,110 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      template_projects: {
+        Row: {
+          created_at: string
+          description: string | null
+          estimated_duration_days: number | null
+          id: string
+          is_required: boolean | null
+          name: string
+          service_template_id: string
+          sort_order: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          estimated_duration_days?: number | null
+          id?: string
+          is_required?: boolean | null
+          name: string
+          service_template_id: string
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          estimated_duration_days?: number | null
+          id?: string
+          is_required?: boolean | null
+          name?: string
+          service_template_id?: string
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "template_projects_service_template_id_fkey"
+            columns: ["service_template_id"]
+            isOneToOne: false
+            referencedRelation: "service_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      template_tasks: {
+        Row: {
+          assigned_to_role: string | null
+          category: string | null
+          created_at: string
+          days_after_start: number | null
+          depends_on_task_id: string | null
+          description: string | null
+          id: string
+          is_required: boolean | null
+          sort_order: number | null
+          template_project_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to_role?: string | null
+          category?: string | null
+          created_at?: string
+          days_after_start?: number | null
+          depends_on_task_id?: string | null
+          description?: string | null
+          id?: string
+          is_required?: boolean | null
+          sort_order?: number | null
+          template_project_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to_role?: string | null
+          category?: string | null
+          created_at?: string
+          days_after_start?: number | null
+          depends_on_task_id?: string | null
+          description?: string | null
+          id?: string
+          is_required?: boolean | null
+          sort_order?: number | null
+          template_project_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "template_tasks_depends_on_task_id_fkey"
+            columns: ["depends_on_task_id"]
+            isOneToOne: false
+            referencedRelation: "template_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "template_tasks_template_project_id_fkey"
+            columns: ["template_project_id"]
+            isOneToOne: false
+            referencedRelation: "template_projects"
             referencedColumns: ["id"]
           },
         ]
@@ -812,6 +1015,14 @@ export type Database = {
         | "manufacturing"
         | "services"
         | "other"
+        | "web_development"
+        | "software_development"
+        | "chatbot"
+        | "website_automation"
+        | "n8n_automation"
+        | "defy_automation"
+        | "agno_automation"
+        | "langchain_automation"
       client_status: "active" | "inactive" | "trial" | "churned"
       department:
         | "engineering"

@@ -68,11 +68,11 @@ const Dashboard: React.FC = () => {
       ? (financialMetrics.newThisMonth / financialMetrics.activeClients) * 100
       : 0;
 
-    // ROI estimado (baseado em receita real vs custo estimado de operação)
-    // Custo estimado: R$ 50 por tarefa (custo operacional)
-    const estimatedCost = stats.totalTasks * 50;
-    const totalRevenue = financialMetrics.totalMRR; // Usando MRR como proxy de receita mensal
-    const roi = estimatedCost > 0 ? ((totalRevenue - estimatedCost) / estimatedCost) * 100 : 0;
+    // ROI real (baseado em custos de aquisição reais dos clientes)
+    // Dados vêm de financialMetrics que já calcula avgROI, totalAcquisitionCost, realProfit
+    const roi = financialMetrics.avgROI || 0; // ROI médio dos clientes recorrentes
+    const totalAcquisitionCost = financialMetrics.totalAcquisitionCost || 0;
+    const realProfit = financialMetrics.realProfit || 0;
 
     // Churn Rate
     const churnRate = financialMetrics.totalClients > 0
@@ -94,9 +94,18 @@ const Dashboard: React.FC = () => {
       lostRevenue,
       growthRate,
       activeClients: financialMetrics.activeClients,
-      roi,
+      roi, // ROI médio real baseado em CAC
+      totalAcquisitionCost, // CAC total investido
+      realProfit, // Lucro real (receita - CAC)
       tasksAtRisk,
       conversionRate: stats.completionRate,
+      // Previsões de receita
+      upcomingRevenue7Days: financialMetrics.upcomingRevenue7Days,
+      todayRevenue: financialMetrics.todayRevenue,
+      // Valores pendentes
+      paymentsPending: financialMetrics.paymentsPending,
+      paymentsOverdue: financialMetrics.paymentsOverdue,
+      freelanceRevenuePending: financialMetrics.freelanceMetrics.revenuePending,
     };
   }, [stats, tasks, clients, getMRRMetrics]);
 
@@ -266,12 +275,12 @@ const Dashboard: React.FC = () => {
         />
 
         <MetricCard
-          title="ROI Estimado"
+          title="ROI Médio"
           value={businessMetrics.roi}
-          description="retorno sobre investimento"
+          description="retorno sobre investimento real"
           trend={
-            businessMetrics.roi > 50 ? 'up' :
-              businessMetrics.roi < 20 ? 'down' : 'stable'
+            businessMetrics.roi > 300 ? 'up' :
+              businessMetrics.roi < 100 ? 'down' : 'stable'
           }
           trendValue={businessMetrics.roi}
           icon={Percent}
@@ -289,6 +298,61 @@ const Dashboard: React.FC = () => {
           trendValue={businessMetrics.tasksAtRisk > 0 ? businessMetrics.tasksAtRisk * 10 : 0}
           icon={CalendarClock}
           format="number"
+        />
+      </div>
+
+      {/* Métricas de Previsão e Valores Pendentes - Linha 3 */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <MetricCard
+          title="Receita Hoje"
+          value={businessMetrics.todayRevenue}
+          description="vencimentos de hoje"
+          trend={
+            businessMetrics.todayRevenue > 1000 ? 'up' :
+              businessMetrics.todayRevenue > 0 ? 'stable' : 'down'
+          }
+          trendValue={businessMetrics.todayRevenue > 0 ? (businessMetrics.todayRevenue / businessMetrics.mrr) * 100 : 0}
+          icon={DollarSign}
+          format="currency"
+        />
+
+        <MetricCard
+          title="Previsão 7 Dias"
+          value={businessMetrics.upcomingRevenue7Days}
+          description="receita esperada próximos 7 dias"
+          trend={
+            businessMetrics.upcomingRevenue7Days > 5000 ? 'up' :
+              businessMetrics.upcomingRevenue7Days > 2000 ? 'stable' : 'down'
+          }
+          trendValue={businessMetrics.upcomingRevenue7Days > 0 ? (businessMetrics.upcomingRevenue7Days / businessMetrics.mrr) * 100 : 0}
+          icon={TrendingUp}
+          format="currency"
+        />
+
+        <MetricCard
+          title="Pendente Recorrente"
+          value={businessMetrics.paymentsPending}
+          description="pagamentos a receber (MRR)"
+          trend={
+            businessMetrics.paymentsPending < 1000 ? 'up' :
+              businessMetrics.paymentsPending > 5000 ? 'down' : 'stable'
+          }
+          trendValue={businessMetrics.paymentsPending > 0 ? (businessMetrics.paymentsPending / businessMetrics.mrr) * 100 : 0}
+          icon={AlertTriangle}
+          format="currency"
+        />
+
+        <MetricCard
+          title="Pendente Freelance"
+          value={businessMetrics.freelanceRevenuePending}
+          description="projetos ativos a receber"
+          trend={
+            businessMetrics.freelanceRevenuePending > 10000 ? 'up' :
+              businessMetrics.freelanceRevenuePending > 5000 ? 'stable' : 'down'
+          }
+          trendValue={businessMetrics.freelanceRevenuePending > 0 ? 10 : 0}
+          icon={AlertTriangle}
+          format="currency"
         />
       </div>
 
@@ -352,17 +416,61 @@ const Dashboard: React.FC = () => {
 
             <div className="space-y-2">
               <h4 className="font-semibold text-sm flex items-center gap-2">
-                {businessMetrics.roi >= 50 ? (
+                {businessMetrics.roi >= 300 ? (
                   <TrendingUp className="h-4 w-4 text-green-500" />
+                ) : businessMetrics.roi >= 100 ? (
+                  <Target className="h-4 w-4 text-yellow-500" />
                 ) : (
-                  <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                  <AlertTriangle className="h-4 w-4 text-red-500" />
                 )}
-                ROI
+                ROI Real
               </h4>
               <p className="text-sm text-muted-foreground">
-                {businessMetrics.roi >= 50
-                  ? `📈 ROI de ${businessMetrics.roi.toFixed(1)}% é excelente! Operação muito rentável.`
-                  : `📊 ROI de ${businessMetrics.roi.toFixed(1)}%. Há espaço para otimização de processos.`}
+                {businessMetrics.roi >= 300
+                  ? `🚀 ROI de ${businessMetrics.roi.toFixed(0)}% é excelente! Retorno 3x superior ao investimento em CAC.`
+                  : businessMetrics.roi >= 100
+                  ? `📈 ROI de ${businessMetrics.roi.toFixed(0)}% está bom. Receita supera os custos de aquisição.`
+                  : businessMetrics.roi > 0
+                  ? `⚠️ ROI de ${businessMetrics.roi.toFixed(0)}% precisa melhorar. Otimize custos de aquisição ou aumente receita.`
+                  : `💡 Sem dados de ROI. Adicione custos de aquisição (CAC) aos clientes para calcular ROI real.`}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <h4 className="font-semibold text-sm flex items-center gap-2">
+                {businessMetrics.upcomingRevenue7Days > businessMetrics.mrr * 0.5 ? (
+                  <TrendingUp className="h-4 w-4 text-green-500" />
+                ) : businessMetrics.upcomingRevenue7Days > businessMetrics.mrr * 0.2 ? (
+                  <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                ) : (
+                  <AlertTriangle className="h-4 w-4 text-red-500" />
+                )}
+                Previsão 7 Dias
+              </h4>
+              <p className="text-sm text-muted-foreground">
+                {businessMetrics.upcomingRevenue7Days > businessMetrics.mrr * 0.5
+                  ? `💰 R$ ${businessMetrics.upcomingRevenue7Days.toFixed(2)} previstos! Boa distribuição de vencimentos.`
+                  : businessMetrics.upcomingRevenue7Days > businessMetrics.mrr * 0.2
+                  ? `📊 R$ ${businessMetrics.upcomingRevenue7Days.toFixed(2)} esperados. Vencimentos moderados próximos.`
+                  : businessMetrics.upcomingRevenue7Days > 0
+                  ? `⚠️ Apenas R$ ${businessMetrics.upcomingRevenue7Days.toFixed(2)} previstos. Poucos vencimentos próximos.`
+                  : `💡 Nenhum vencimento nos próximos 7 dias. Verifique calendário de pagamentos.`}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <h4 className="font-semibold text-sm flex items-center gap-2">
+                {businessMetrics.paymentsPending + businessMetrics.freelanceRevenuePending < 5000 ? (
+                  <TrendingUp className="h-4 w-4 text-green-500" />
+                ) : (
+                  <AlertTriangle className="h-4 w-4 text-orange-500" />
+                )}
+                Valores Pendentes
+              </h4>
+              <p className="text-sm text-muted-foreground">
+                {businessMetrics.paymentsPending + businessMetrics.freelanceRevenuePending < 5000
+                  ? `✅ R$ ${(businessMetrics.paymentsPending + businessMetrics.freelanceRevenuePending).toFixed(2)} pendentes. Boa gestão de recebíveis!`
+                  : `⚠️ R$ ${(businessMetrics.paymentsPending + businessMetrics.freelanceRevenuePending).toFixed(2)} pendentes (MRR: R$ ${businessMetrics.paymentsPending.toFixed(2)} + Freelance: R$ ${businessMetrics.freelanceRevenuePending.toFixed(2)}). Monitore cobranças.`}
               </p>
             </div>
           </div>

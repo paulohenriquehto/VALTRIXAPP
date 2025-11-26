@@ -16,6 +16,7 @@ import type {
   Project,
 } from '../types';
 import { buildOrgChart, getAllSubordinates } from '../utils/hierarchy';
+import { calculateROI } from '../services/clientService';
 
 // Interface do estado global
 interface AppState {
@@ -291,31 +292,112 @@ export const useAppStore = create<AppState>()(
           const now = new Date();
           const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-          const activeClients = state.clients.filter(c => c.status === 'active').length;
-          const trialClients = state.clients.filter(c => c.status === 'trial').length;
-          const churnedThisMonth = state.clients.filter(
+          // SEPARAR clientes recorrentes vs freelance
+          const recurringClients = state.clients.filter(c => c.clientType === 'recurring');
+          const freelanceClients = state.clients.filter(c => c.clientType === 'freelance');
+
+          // === MÉTRICAS DE CLIENTES RECORRENTES (MRR) ===
+          const activeRecurringClients = recurringClients.filter(c => c.status === 'active');
+          const activeClients = activeRecurringClients.length;
+          const trialClients = recurringClients.filter(c => c.status === 'trial').length;
+
+          const churnedThisMonth = recurringClients.filter(
             c => c.status === 'churned' && new Date(c.updatedAt) >= firstDayOfMonth
           ).length;
-          const newThisMonth = state.clients.filter(
+
+          const newThisMonth = recurringClients.filter(
             c => new Date(c.createdAt) >= firstDayOfMonth
           ).length;
 
-          const totalMRR = state.clients
-            .filter(c => c.status === 'active')
-            .reduce((sum, c) => sum + c.monthlyValue, 0);
-
+          const totalMRR = activeRecurringClients.reduce((sum, c) => sum + c.monthlyValue, 0);
           const avgRevenuePerClient = activeClients > 0 ? totalMRR / activeClients : 0;
           const projectedAnnualRevenue = totalMRR * 12;
 
-          const paymentsPending = state.clients.filter(
-            c => c.status === 'active' && c.paymentStatus === 'pending'
+          const paymentsPending = activeRecurringClients.filter(
+            c => c.paymentStatus === 'pending'
           ).reduce((sum, c) => sum + c.monthlyValue, 0);
 
-          const paymentsOverdue = state.clients.filter(
-            c => c.status === 'active' && c.paymentStatus === 'overdue'
+          const paymentsOverdue = activeRecurringClients.filter(
+            c => c.paymentStatus === 'overdue'
           ).reduce((sum, c) => sum + c.monthlyValue, 0);
+
+          // Receita prevista para os próximos 7 dias (clientes recorrentes)
+          const today = now.getDate();
+          const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).getDate();
+
+          const upcomingRevenue7Days = activeRecurringClients.filter(c => {
+            const dueDay = c.paymentDueDay;
+            if (!dueDay) return false;
+
+            // Se estamos no final do mês e o próximo vencimento é início do próximo mês
+            if (sevenDaysFromNow < today) {
+              return dueDay >= today || dueDay <= sevenDaysFromNow;
+            }
+            // Caso normal: próximos 7 dias no mesmo mês
+            return dueDay >= today && dueDay <= sevenDaysFromNow;
+          }).reduce((sum, c) => sum + c.monthlyValue, 0);
+
+          // Receita prevista para hoje (clientes recorrentes)
+          const todayRevenue = activeRecurringClients.filter(c => {
+            return c.paymentDueDay === today;
+          }).reduce((sum, c) => sum + c.monthlyValue, 0);
+
+          // === MÉTRICAS DE CLIENTES FREELANCE ===
+          const activeFreelance = freelanceClients.filter(c => c.status === 'active').length;
+          const completedFreelance = freelanceClients.filter(c => c.status === 'completed').length;
+
+          // Receita paga (projetos concluídos + clientes com totalPaid)
+          const revenuePaid = freelanceClients
+            .filter(c => c.status === 'completed')
+            .reduce((sum, c) => sum + (c.monthlyValue || 0), 0);
+
+          // Receita pendente (projetos ativos)
+          const revenuePending = freelanceClients
+            .filter(c => c.status === 'active')
+            .reduce((sum, c) => sum + (c.monthlyValue || 0), 0);
+
+          const totalFreelanceRevenue = revenuePaid + revenuePending;
+
+          const totalFreelanceProjects = activeFreelance + completedFreelance;
+          const avgProjectValue = totalFreelanceProjects > 0
+            ? totalFreelanceRevenue / totalFreelanceProjects
+            : 0;
+
+          // Contar quantos pagamentos foram recebidos (projetos concluídos)
+          const receivedPaymentsCount = completedFreelance;
+
+          // === MÉTRICAS DE ROI E CAC (TODOS OS CLIENTES) ===
+          // Calcular CAC total de todos os clientes
+          const totalAcquisitionCost = state.clients.reduce(
+            (sum, c) => sum + (c.acquisitionCost || 0),
+            0
+          );
+
+          // Calcular ROI médio dos clientes recorrentes
+          const recurringROIs = activeRecurringClients
+            .map(c => {
+              const roiData = calculateROI(c);
+              return roiData.roi;
+            })
+            .filter(roi => roi !== null) as number[];
+
+          const avgROI = recurringROIs.length > 0
+            ? recurringROIs.reduce((sum, roi) => sum + roi, 0) / recurringROIs.length
+            : 0;
+
+          // Calcular receita total (recorrentes + freelance)
+          const totalRecurringRevenue = activeRecurringClients.reduce((sum, c) => {
+            const roiData = calculateROI(c);
+            return sum + roiData.totalRevenue;
+          }, 0);
+
+          const totalRevenue = totalRecurringRevenue + revenuePaid;
+
+          // Lucro real = Receita total - CAC total
+          const realProfit = totalRevenue - totalAcquisitionCost;
 
           return {
+            // Métricas MRR (apenas recorrentes)
             totalMRR,
             activeClients,
             trialClients,
@@ -325,7 +407,27 @@ export const useAppStore = create<AppState>()(
             projectedAnnualRevenue,
             paymentsPending,
             paymentsOverdue,
-            totalClients: state.clients.length,
+            totalClients: recurringClients.length,
+
+            // Previsões de receita (clientes recorrentes)
+            upcomingRevenue7Days, // Receita esperada nos próximos 7 dias
+            todayRevenue, // Receita esperada para hoje
+
+            // Métricas de ROI e CAC (todos os clientes)
+            totalAcquisitionCost,
+            avgROI,
+            realProfit,
+
+            // Métricas Freelance (separadas)
+            freelanceMetrics: {
+              totalRevenue: totalFreelanceRevenue,
+              revenuePaid,
+              revenuePending,
+              activeFreelance,
+              completedFreelance,
+              avgProjectValue,
+              receivedPaymentsCount,
+            },
           };
         },
 

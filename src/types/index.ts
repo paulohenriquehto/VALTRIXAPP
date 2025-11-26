@@ -238,12 +238,25 @@ export interface Client {
   phone?: string;
   logoUrl?: string;
 
+  // Tipo de cliente
+  clientType: ClientType; // 'recurring' ou 'freelance'
+
   // Informações financeiras
-  monthlyValue: number; // MRR individual
+  monthlyValue: number; // MRR para recorrentes ou Valor Total para freelance
   contractStartDate: string;
   paymentDueDay: number; // Dia do mês (1-31)
   paymentStatus: PaymentStatus;
   paymentMethod: PaymentMethod;
+
+  // Campos calculados para pagamentos parciais (freelance)
+  totalPaid?: number; // Soma de todos os payments com status 'paid'
+  remainingAmount?: number; // monthlyValue - totalPaid
+  paymentProgress?: number; // Porcentagem paga (0-100)
+
+  // Custo de Aquisição de Cliente (CAC) e ROI
+  acquisitionCost?: number; // Custo total para adquirir o cliente (tráfego pago, indicação, etc.)
+  roi?: number; // Return on Investment calculado: ((receita - CAC) / CAC) * 100
+  realProfit?: number; // Lucro real: receita total - CAC
 
   // Status
   status: ClientStatus;
@@ -255,14 +268,26 @@ export interface Client {
   createdBy: User;
 }
 
+export type ClientType = 'recurring' | 'freelance';
+
 export type ClientSegment =
-  | 'technology'
-  | 'healthcare'
-  | 'education'
-  | 'finance'
-  | 'retail'
-  | 'manufacturing'
-  | 'services'
+  | 'web_development'
+  | 'software_development'
+  | 'bug_fixing'
+  | 'landing_pages'
+  | 'microsites'
+  | 'web_design'
+  | 'ui_ux_design'
+  | 'chatbot'
+  | 'website_automation'
+  | 'n8n_automation'
+  | 'defy_automation'
+  | 'agno_automation'
+  | 'langchain_automation'
+  | 'traffic_management'
+  | 'seo'
+  | 'consulting'
+  | 'maintenance'
   | 'other';
 
 export type PaymentStatus =
@@ -283,7 +308,8 @@ export type ClientStatus =
   | 'active'
   | 'inactive'
   | 'trial'
-  | 'churned';
+  | 'churned'
+  | 'completed';
 
 export interface Payment {
   id: string;
@@ -294,12 +320,25 @@ export interface Payment {
   status: PaymentStatus;
   method: PaymentMethod;
   notes?: string;
+  installmentNumber?: number; // Número da parcela (1, 2, 3...)
+  percentage?: number; // Porcentagem do valor total (0-100)
   createdAt: string;
 }
 
+export interface FreelanceMetrics {
+  totalRevenue: number; // Soma total de clientes freelance
+  revenuePaid: number; // Receita já recebida (em caixa)
+  revenuePending: number; // Receita a receber (pendente)
+  activeFreelance: number; // Freelance ativos
+  completedFreelance: number; // Freelance concluídos
+  avgProjectValue: number; // Valor médio por projeto
+  receivedPaymentsCount: number; // Quantidade de pagamentos recebidos
+}
+
 export interface MRRMetrics {
+  // Métricas de clientes RECORRENTES apenas
   totalMRR: number;
-  activeClients: number;
+  activeClients: number; // Apenas recorrentes ativos
   trialClients: number;
   churnedThisMonth: number;
   newThisMonth: number;
@@ -307,17 +346,39 @@ export interface MRRMetrics {
   projectedAnnualRevenue: number;
   paymentsPending: number;
   paymentsOverdue: number;
-  totalClients: number;
+  totalClients: number; // Total de clientes recorrentes
+
+  // Previsões de receita (clientes recorrentes)
+  upcomingRevenue7Days: number; // Receita esperada nos próximos 7 dias
+  todayRevenue: number; // Receita esperada para hoje
+
+  // Métricas de ROI e CAC (clientes recorrentes)
+  totalAcquisitionCost: number; // Soma de todos os CACs de clientes recorrentes
+  avgROI: number; // ROI médio dos clientes recorrentes
+  realProfit: number; // Receita total - CAC total (clientes recorrentes)
+
+  // Métricas de clientes FREELANCE (separadas)
+  freelanceMetrics: FreelanceMetrics;
 }
 
 export const ClientSegments = {
-  TECHNOLOGY: 'technology',
-  HEALTHCARE: 'healthcare',
-  EDUCATION: 'education',
-  FINANCE: 'finance',
-  RETAIL: 'retail',
-  MANUFACTURING: 'manufacturing',
-  SERVICES: 'services',
+  WEB_DEVELOPMENT: 'web_development',
+  SOFTWARE_DEVELOPMENT: 'software_development',
+  BUG_FIXING: 'bug_fixing',
+  LANDING_PAGES: 'landing_pages',
+  MICROSITES: 'microsites',
+  WEB_DESIGN: 'web_design',
+  UI_UX_DESIGN: 'ui_ux_design',
+  CHATBOT: 'chatbot',
+  WEBSITE_AUTOMATION: 'website_automation',
+  N8N_AUTOMATION: 'n8n_automation',
+  DEFY_AUTOMATION: 'defy_automation',
+  AGNO_AUTOMATION: 'agno_automation',
+  LANGCHAIN_AUTOMATION: 'langchain_automation',
+  TRAFFIC_MANAGEMENT: 'traffic_management',
+  SEO: 'seo',
+  CONSULTING: 'consulting',
+  MAINTENANCE: 'maintenance',
   OTHER: 'other',
 } as const;
 
@@ -333,6 +394,7 @@ export const ClientStatuses = {
   INACTIVE: 'inactive',
   TRIAL: 'trial',
   CHURNED: 'churned',
+  COMPLETED: 'completed',
 } as const;
 
 // ============================================

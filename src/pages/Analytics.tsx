@@ -7,6 +7,8 @@ import {
   Target,
   BarChart3,
   AlertCircle,
+  Banknote,
+  Percent,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
@@ -26,7 +28,7 @@ const Analytics: React.FC = () => {
   const { user } = useAuth();
   const { teamMembers } = useTeam();
   const { tasks } = useTasks();
-  const { clients, payments } = useClients();
+  const { clients, payments, getMRRMetrics } = useClients();
   const [period, setPeriod] = useState<AnalyticsPeriod>('this_month');
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>();
 
@@ -44,6 +46,9 @@ const Analytics: React.FC = () => {
       dateRange
     );
   }, [period, customDateRange, clients, payments, tasks, teamMembers]);
+
+  // Métricas de ROI reais do MRR
+  const mrrMetrics = useMemo(() => getMRRMetrics(), [clients, getMRRMetrics]);
 
   // Prepara KPI Cards
   const kpiCards: KPICardData[] = [
@@ -117,6 +122,104 @@ const Analytics: React.FC = () => {
       color: 'bg-teal-100 dark:bg-teal-900/30',
       description: `${metrics.financial.paidInvoices} pagamentos recebidos`,
     },
+    {
+      id: 'roi-average',
+      title: 'ROI Médio',
+      value: mrrMetrics.avgROI || 0,
+      unit: 'percent',
+      trend: {
+        value: mrrMetrics.avgROI > 300 ? ((mrrMetrics.avgROI - 300) / 300) * 100 : 0,
+        direction: mrrMetrics.avgROI > 300 ? 'up' : mrrMetrics.avgROI >= 100 ? 'stable' : 'down',
+        isPositive: mrrMetrics.avgROI >= 100,
+      },
+      icon: <Percent className="h-5 w-5" />,
+      color: 'bg-purple-100 dark:bg-purple-900/30',
+      description: 'Retorno sobre investimento',
+    },
+    {
+      id: 'total-cac',
+      title: 'CAC Total',
+      value: mrrMetrics.totalAcquisitionCost || 0,
+      unit: 'currency',
+      trend: {
+        value: 0,
+        direction: 'stable',
+        isPositive: true,
+      },
+      icon: <DollarSign className="h-5 w-5" />,
+      color: 'bg-orange-100 dark:bg-orange-900/30',
+      description: 'Custo total de aquisição',
+    },
+    {
+      id: 'real-profit',
+      title: 'Lucro Real',
+      value: mrrMetrics.realProfit || 0,
+      unit: 'currency',
+      trend: {
+        value: mrrMetrics.realProfit > 0 ? ((mrrMetrics.realProfit / (mrrMetrics.totalAcquisitionCost || 1)) * 100) : 0,
+        direction: mrrMetrics.realProfit > mrrMetrics.totalAcquisitionCost ? 'up' : 'down',
+        isPositive: mrrMetrics.realProfit > 0,
+      },
+      icon: <Banknote className="h-5 w-5" />,
+      color: 'bg-emerald-100 dark:bg-emerald-900/30',
+      description: 'Receita menos CAC',
+    },
+    {
+      id: 'today-revenue',
+      title: 'Receita Hoje',
+      value: mrrMetrics.todayRevenue || 0,
+      unit: 'currency',
+      trend: {
+        value: mrrMetrics.todayRevenue > 0 ? ((mrrMetrics.todayRevenue / mrrMetrics.totalMRR) * 100) : 0,
+        direction: mrrMetrics.todayRevenue > 1000 ? 'up' : mrrMetrics.todayRevenue > 0 ? 'stable' : 'down',
+        isPositive: mrrMetrics.todayRevenue > 0,
+      },
+      icon: <DollarSign className="h-5 w-5" />,
+      color: 'bg-blue-100 dark:bg-blue-900/30',
+      description: 'Vencimentos de hoje',
+    },
+    {
+      id: 'upcoming-7-days',
+      title: 'Previsão 7 Dias',
+      value: mrrMetrics.upcomingRevenue7Days || 0,
+      unit: 'currency',
+      trend: {
+        value: mrrMetrics.upcomingRevenue7Days > 0 ? ((mrrMetrics.upcomingRevenue7Days / mrrMetrics.totalMRR) * 100) : 0,
+        direction: mrrMetrics.upcomingRevenue7Days > 5000 ? 'up' : mrrMetrics.upcomingRevenue7Days > 2000 ? 'stable' : 'down',
+        isPositive: mrrMetrics.upcomingRevenue7Days > 0,
+      },
+      icon: <TrendingUp className="h-5 w-5" />,
+      color: 'bg-cyan-100 dark:bg-cyan-900/30',
+      description: 'Receita esperada próximos 7 dias',
+    },
+    {
+      id: 'pending-recurring',
+      title: 'Pendente Recorrente',
+      value: mrrMetrics.paymentsPending || 0,
+      unit: 'currency',
+      trend: {
+        value: mrrMetrics.paymentsPending > 0 ? ((mrrMetrics.paymentsPending / mrrMetrics.totalMRR) * 100) : 0,
+        direction: mrrMetrics.paymentsPending < 1000 ? 'up' : mrrMetrics.paymentsPending > 5000 ? 'down' : 'stable',
+        isPositive: mrrMetrics.paymentsPending < 5000,
+      },
+      icon: <AlertCircle className="h-5 w-5" />,
+      color: 'bg-yellow-100 dark:bg-yellow-900/30',
+      description: 'Pagamentos a receber (MRR)',
+    },
+    {
+      id: 'pending-freelance',
+      title: 'Pendente Freelance',
+      value: mrrMetrics.freelanceMetrics.revenuePending || 0,
+      unit: 'currency',
+      trend: {
+        value: mrrMetrics.freelanceMetrics.revenuePending > 0 ? 10 : 0,
+        direction: mrrMetrics.freelanceMetrics.revenuePending > 10000 ? 'up' : mrrMetrics.freelanceMetrics.revenuePending > 5000 ? 'stable' : 'down',
+        isPositive: mrrMetrics.freelanceMetrics.revenuePending > 0,
+      },
+      icon: <AlertCircle className="h-5 w-5" />,
+      color: 'bg-amber-100 dark:bg-amber-900/30',
+      description: 'Projetos ativos a receber',
+    },
   ];
 
   return (
@@ -144,7 +247,7 @@ const Analytics: React.FC = () => {
       </Card>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {kpiCards.map((card) => (
           <KPICard key={card.id} data={card} />
         ))}

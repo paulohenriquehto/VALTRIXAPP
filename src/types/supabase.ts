@@ -141,6 +141,8 @@ export type Database = {
       }
       clients: {
         Row: {
+          acquisition_cost: number | null
+          client_type: Database["public"]["Enums"]["client_type"]
           company_name: string
           contact_person: string | null
           contract_start_date: string | null
@@ -160,6 +162,8 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          acquisition_cost?: number | null
+          client_type?: Database["public"]["Enums"]["client_type"]
           company_name: string
           contact_person?: string | null
           contract_start_date?: string | null
@@ -179,6 +183,8 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          acquisition_cost?: number | null
+          client_type?: Database["public"]["Enums"]["client_type"]
           company_name?: string
           contact_person?: string | null
           contract_start_date?: string | null
@@ -256,9 +262,11 @@ export type Database = {
           created_at: string | null
           due_date: string
           id: string
+          installment_number: number | null
           method: Database["public"]["Enums"]["payment_method"]
           notes: string | null
           paid_date: string | null
+          percentage: number | null
           status: Database["public"]["Enums"]["payment_status"]
         }
         Insert: {
@@ -267,9 +275,11 @@ export type Database = {
           created_at?: string | null
           due_date: string
           id?: string
+          installment_number?: number | null
           method: Database["public"]["Enums"]["payment_method"]
           notes?: string | null
           paid_date?: string | null
+          percentage?: number | null
           status: Database["public"]["Enums"]["payment_status"]
         }
         Update: {
@@ -278,9 +288,11 @@ export type Database = {
           created_at?: string | null
           due_date?: string
           id?: string
+          installment_number?: number | null
           method?: Database["public"]["Enums"]["payment_method"]
           notes?: string | null
           paid_date?: string | null
+          percentage?: number | null
           status?: Database["public"]["Enums"]["payment_status"]
         }
         Relationships: [
@@ -593,15 +605,26 @@ export type Database = {
     }
     Enums: {
       client_segment:
-        | "technology"
-        | "healthcare"
-        | "education"
-        | "finance"
-        | "retail"
-        | "manufacturing"
-        | "services"
+        | "web_development"
+        | "software_development"
+        | "bug_fixing"
+        | "landing_pages"
+        | "microsites"
+        | "web_design"
+        | "ui_ux_design"
+        | "chatbot"
+        | "website_automation"
+        | "n8n_automation"
+        | "defy_automation"
+        | "agno_automation"
+        | "langchain_automation"
+        | "traffic_management"
+        | "seo"
+        | "consulting"
+        | "maintenance"
         | "other"
-      client_status: "active" | "inactive" | "trial" | "churned"
+      client_status: "active" | "inactive" | "trial" | "churned" | "completed"
+      client_type: "recurring" | "freelance"
       department:
         | "engineering"
         | "product"

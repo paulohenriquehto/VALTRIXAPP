@@ -35,7 +35,7 @@ export class ProjectService {
         created_by:users(*),
         notes:project_notes(*, created_by:users(*)),
         documents:project_documents(*, uploaded_by:users(*)),
-        tasks(*, category:categories(*), assignee:users(*))
+        tasks(*, category:categories(*), assignee:users!tasks_assignee_id_fkey(*))
       `)
       .eq('id', projectId)
       .single();

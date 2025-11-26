@@ -101,7 +101,10 @@ export default defineConfig({
       },
 
       devOptions: {
-        enabled: true // PWA habilitado para testes
+        enabled: true,
+        type: 'module',
+        navigateFallback: 'index.html',
+        suppressWarnings: true
       }
     })
   ],
