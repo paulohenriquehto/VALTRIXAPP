@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import {
   Sparkles,
@@ -59,30 +58,8 @@ export function AIDashboardWidget() {
     }
   };
 
-  // Loading state
-  if (!dailyBriefing && insights.length === 0) {
-    return (
-      <Card className="border-l-4 border-l-amber-500">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <div className="p-1.5 rounded-lg bg-gradient-to-br from-amber-500 to-blue-500">
-              <Sparkles className="h-4 w-4 text-white" />
-            </div>
-            AI Manager
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-3/4" />
-          <Skeleton className="h-4 w-1/2" />
-          <div className="flex gap-2 mt-4">
-            <Skeleton className="h-9 w-24" />
-            <Skeleton className="h-9 w-28" />
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  // REMOVIDO: Skeleton loading - agora sempre mostra o conteúdo ou estado vazio
+  // O widget funciona mesmo sem dados carregados
 
   return (
     <Card className="border-l-4 border-l-amber-500 bg-gradient-to-r from-amber-500/5 via-transparent to-blue-500/5">

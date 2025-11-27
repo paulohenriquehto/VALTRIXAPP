@@ -9,6 +9,7 @@ import type {
 
 class AIManagerService {
   private baseUrl = import.meta.env.VITE_SUPABASE_URL;
+  private aiApiUrl = '/api/ai-manager';
 
   /**
    * Envia mensagem para o AI Manager com streaming
@@ -26,7 +27,7 @@ class AIManagerService {
         return;
       }
 
-      const response = await fetch(`${this.baseUrl}/functions/v1/ai-manager`, {
+      const response = await fetch(this.aiApiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -51,6 +52,53 @@ class AIManagerService {
 
       let buffer = '';
 
+      // Buffer para filtrar <think> tags do modelo Qwen
+      let thinkBuffer = '';
+      let isInThinkBlock = false;
+
+      const processThinkFilter = (content: string) => {
+        thinkBuffer += content;
+
+        while (true) {
+          if (isInThinkBlock) {
+            const endIndex = thinkBuffer.indexOf('</think>');
+            if (endIndex !== -1) {
+              // Encontrou fim do bloco think - descartar conteúdo
+              thinkBuffer = thinkBuffer.slice(endIndex + 8);
+              isInThinkBlock = false;
+            } else {
+              // Ainda dentro do think block - esperar mais chunks
+              break;
+            }
+          } else {
+            const startIndex = thinkBuffer.indexOf('<think>');
+            if (startIndex !== -1) {
+              // Emitir conteúdo antes do <think>
+              const beforeThink = thinkBuffer.slice(0, startIndex);
+              if (beforeThink) {
+                callbacks.onContent(beforeThink);
+              }
+              thinkBuffer = thinkBuffer.slice(startIndex + 7);
+              isInThinkBlock = true;
+            } else {
+              // Verificar se pode ter início parcial de <think>
+              let safeLength = thinkBuffer.length;
+              for (let i = 1; i < 7; i++) {
+                if (thinkBuffer.endsWith('<think>'.slice(0, i))) {
+                  safeLength = thinkBuffer.length - i;
+                  break;
+                }
+              }
+              if (safeLength > 0) {
+                callbacks.onContent(thinkBuffer.slice(0, safeLength));
+                thinkBuffer = thinkBuffer.slice(safeLength);
+              }
+              break;
+            }
+          }
+        }
+      };
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -62,9 +110,27 @@ class AIManagerService {
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
 
+          // Handle [DONE] message
+          if (line === 'data: [DONE]') {
+            callbacks.onDone();
+            continue;
+          }
+
           try {
             const data = JSON.parse(line.slice(6));
 
+            // OpenAI-compatible format from Vercel API
+            const content = data.choices?.[0]?.delta?.content;
+            if (content) {
+              processThinkFilter(content);
+            }
+
+            // Check for finish
+            if (data.choices?.[0]?.finish_reason === 'stop') {
+              callbacks.onDone();
+            }
+
+            // Legacy format support
             if (data.type === 'content' && data.content) {
               callbacks.onContent(data.content);
             }
@@ -100,9 +166,9 @@ class AIManagerService {
       .eq('type', 'daily_briefing')
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
-    if (error && error.code !== 'PGRST116') {
+    if (error) {
       console.error('Erro ao buscar briefing diário:', error);
       return null;
     }

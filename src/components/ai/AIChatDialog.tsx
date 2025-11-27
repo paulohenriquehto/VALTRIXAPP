@@ -87,9 +87,9 @@ export function AIChatDialog() {
   ];
 
   const ChatContent = (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Área de Mensagens */}
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+      <ScrollArea className="flex-1 min-h-0 p-4" ref={scrollRef}>
         <div className="space-y-4">
           {messages.map((msg) => (
             <div
@@ -298,7 +298,7 @@ export function AIChatDialog() {
   if (isMobile) {
     return (
       <Sheet open={isOpen} onOpenChange={toggleOpen}>
-        <SheetContent side="bottom" className="h-[90vh] p-0 flex flex-col">
+        <SheetContent side="bottom" className="h-[90vh] p-0 flex flex-col overflow-hidden">
           <SheetHeader className="p-4 border-b">
             <SheetTitle asChild>{HeaderContent}</SheetTitle>
           </SheetHeader>
@@ -311,7 +311,7 @@ export function AIChatDialog() {
   // Desktop: Dialog
   return (
     <Dialog open={isOpen} onOpenChange={toggleOpen}>
-      <DialogContent className="sm:max-w-lg h-[600px] max-h-[80vh] p-0 flex flex-col gap-0">
+      <DialogContent className="sm:max-w-lg h-[600px] max-h-[80vh] p-0 flex flex-col gap-0 overflow-hidden">
         <DialogHeader className="p-4 border-b">
           <DialogTitle asChild>{HeaderContent}</DialogTitle>
         </DialogHeader>
