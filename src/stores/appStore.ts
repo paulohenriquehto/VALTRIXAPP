@@ -346,25 +346,48 @@ export const useAppStore = create<AppState>()(
           const activeFreelance = freelanceClients.filter(c => c.status === 'active').length;
           const completedFreelance = freelanceClients.filter(c => c.status === 'completed').length;
 
-          // Receita paga (projetos concluídos + clientes com totalPaid)
-          const revenuePaid = freelanceClients
-            .filter(c => c.status === 'completed')
+          // IDs dos clientes freelance para filtrar pagamentos
+          const freelanceClientIds = freelanceClients.map(c => c.id);
+
+          // Pagamentos dos clientes freelance
+          const freelancePayments = state.payments.filter(p =>
+            freelanceClientIds.includes(p.clientId)
+          );
+
+          // Receita TOTAL paga (soma de TODOS os pagamentos com status 'paid')
+          const revenuePaid = freelancePayments
+            .filter(p => p.status === 'paid')
+            .reduce((sum, p) => sum + p.amount, 0);
+
+          // Receita do MÊS ATUAL (pagamentos pagos no mês corrente)
+          const currentMonth = now.getMonth();
+          const currentYear = now.getFullYear();
+
+          const monthlyRevenuePaid = freelancePayments
+            .filter(p => {
+              if (p.status !== 'paid' || !p.paidDate) return false;
+              const paidDate = new Date(p.paidDate);
+              return paidDate.getMonth() === currentMonth &&
+                     paidDate.getFullYear() === currentYear;
+            })
+            .reduce((sum, p) => sum + p.amount, 0);
+
+          // Valor TOTAL de todos os projetos freelance (ativos + completados)
+          const totalFreelanceValue = freelanceClients
             .reduce((sum, c) => sum + (c.monthlyValue || 0), 0);
 
-          // Receita pendente (projetos ativos)
-          const revenuePending = freelanceClients
-            .filter(c => c.status === 'active')
-            .reduce((sum, c) => sum + (c.monthlyValue || 0), 0);
+          // Receita PENDENTE = Valor Total dos Projetos - Pagamentos já recebidos
+          const revenuePending = Math.max(0, totalFreelanceValue - revenuePaid);
 
-          const totalFreelanceRevenue = revenuePaid + revenuePending;
+          const totalFreelanceRevenue = totalFreelanceValue;
 
           const totalFreelanceProjects = activeFreelance + completedFreelance;
           const avgProjectValue = totalFreelanceProjects > 0
             ? totalFreelanceRevenue / totalFreelanceProjects
             : 0;
 
-          // Contar quantos pagamentos foram recebidos (projetos concluídos)
-          const receivedPaymentsCount = completedFreelance;
+          // Contar quantos pagamentos foram recebidos (pagamentos reais com status 'paid')
+          const receivedPaymentsCount = freelancePayments.filter(p => p.status === 'paid').length;
 
           // === MÉTRICAS DE ROI E CAC (TODOS OS CLIENTES) ===
           // Calcular CAC total de todos os clientes
@@ -423,6 +446,7 @@ export const useAppStore = create<AppState>()(
               totalRevenue: totalFreelanceRevenue,
               revenuePaid,
               revenuePending,
+              monthlyRevenuePaid, // Receita do mês atual
               activeFreelance,
               completedFreelance,
               avgProjectValue,

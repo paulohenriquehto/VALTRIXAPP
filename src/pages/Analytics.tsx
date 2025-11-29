@@ -239,6 +239,20 @@ const Analytics: React.FC = () => {
       description: 'Pagamentos a receber (MRR)',
     },
     {
+      id: 'monthly-freelance',
+      title: 'Receita Mês (Freelance)',
+      value: mrrMetrics.freelanceMetrics.monthlyRevenuePaid || 0,
+      unit: 'currency',
+      trend: {
+        value: mrrMetrics.freelanceMetrics.monthlyRevenuePaid > 0 ? 10 : 0,
+        direction: (mrrMetrics.freelanceMetrics.monthlyRevenuePaid || 0) > 5000 ? 'up' : (mrrMetrics.freelanceMetrics.monthlyRevenuePaid || 0) > 2000 ? 'stable' : 'down',
+        isPositive: (mrrMetrics.freelanceMetrics.monthlyRevenuePaid || 0) > 0,
+      },
+      icon: <DollarSign className="h-5 w-5" />,
+      color: 'bg-green-100 dark:bg-green-900/30',
+      description: 'Pagamentos recebidos este mês',
+    },
+    {
       id: 'pending-freelance',
       title: 'Pendente Freelance',
       value: mrrMetrics.freelanceMetrics.revenuePending || 0,
@@ -250,7 +264,7 @@ const Analytics: React.FC = () => {
       },
       icon: <AlertCircle className="h-5 w-5" />,
       color: 'bg-amber-100 dark:bg-amber-900/30',
-      description: 'Projetos ativos a receber',
+      description: 'Parcelas a receber',
     },
   ];
 

@@ -462,6 +462,7 @@ const ClientDialog: React.FC<ClientDialogProps> = ({
                       <SelectItem value="pending">Pendente</SelectItem>
                       <SelectItem value="overdue">Atrasado</SelectItem>
                       <SelectItem value="cancelled">Cancelado</SelectItem>
+                      <SelectItem value="installment">Parcelado</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

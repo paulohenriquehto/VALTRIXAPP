@@ -108,12 +108,12 @@ const MRRDashboard: React.FC<MRRDashboardProps> = ({ metrics }) => {
 
   const freelanceCards = [
     {
-      title: 'Receita Recebida',
-      value: formatCurrency(metrics.freelanceMetrics.revenuePaid),
+      title: 'Receita do Mês',
+      value: formatCurrency(metrics.freelanceMetrics.monthlyRevenuePaid || 0),
       icon: DollarSign,
       iconColor: 'text-green-600',
       bgColor: 'bg-green-100 dark:bg-green-900/30',
-      description: 'Dinheiro em caixa (100% pago)',
+      description: 'Pagamentos recebidos este mês',
     },
     {
       title: 'Receita Pendente',
@@ -121,7 +121,15 @@ const MRRDashboard: React.FC<MRRDashboardProps> = ({ metrics }) => {
       icon: AlertCircle,
       iconColor: 'text-orange-600',
       bgColor: 'bg-orange-100 dark:bg-orange-900/30',
-      description: 'A receber (projetos ativos)',
+      description: 'Parcelas a receber',
+    },
+    {
+      title: 'Total Recebido',
+      value: formatCurrency(metrics.freelanceMetrics.revenuePaid),
+      icon: Banknote,
+      iconColor: 'text-emerald-600',
+      bgColor: 'bg-emerald-100 dark:bg-emerald-900/30',
+      description: 'Acumulado histórico',
     },
     {
       title: 'Projetos Ativos',

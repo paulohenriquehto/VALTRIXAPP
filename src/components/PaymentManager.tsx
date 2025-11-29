@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ClientService, calculatePaymentProgress } from '../services/clientService';
+import { useClients } from '../stores/appStore';
 import type { Client, Payment } from '../types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,6 +35,7 @@ interface PaymentManagerProps {
 }
 
 const PaymentManager: React.FC<PaymentManagerProps> = ({ client, onUpdate }) => {
+  const { updateClient } = useClients();
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -113,7 +115,24 @@ const PaymentManager: React.FC<PaymentManagerProps> = ({ client, onUpdate }) => 
       setNotes('');
       setPaymentStatus('pending');
 
-      await loadPayments();
+      // Recarregar pagamentos e verificar se completou 100%
+      const updatedPayments = await ClientService.getPayments(client.id);
+      setPayments(updatedPayments);
+
+      // Calcular novo progresso
+      const newProgress = calculatePaymentProgress(client.monthlyValue, updatedPayments);
+
+      // Se atingiu 100%, auto-completar o cliente
+      if (newProgress.paymentProgress >= 100 && client.status !== 'completed') {
+        try {
+          await ClientService.update(client.id, { status: 'completed' });
+          updateClient(client.id, { status: 'completed' });
+          toast.success('Projeto concluído! Todas as parcelas foram pagas.');
+        } catch (error) {
+          console.error('Erro ao atualizar status do cliente:', error);
+        }
+      }
+
       if (onUpdate) onUpdate();
     } catch (error: any) {
       console.error('Erro ao adicionar pagamento:', error);
@@ -129,6 +148,7 @@ const PaymentManager: React.FC<PaymentManagerProps> = ({ client, onUpdate }) => 
       pending: { label: 'Pendente', icon: Clock, className: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' },
       overdue: { label: 'Atrasado', icon: XCircle, className: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' },
       cancelled: { label: 'Cancelado', icon: XCircle, className: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' },
+      installment: { label: 'Parcelado', icon: Clock, className: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' },
     };
     const variant = variants[status];
     const Icon = variant.icon;

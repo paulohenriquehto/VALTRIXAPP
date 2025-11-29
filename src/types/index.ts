@@ -294,7 +294,8 @@ export type PaymentStatus =
   | 'paid'
   | 'pending'
   | 'overdue'
-  | 'cancelled';
+  | 'cancelled'
+  | 'installment';
 
 export type PaymentMethod =
   | 'credit_card'
@@ -327,8 +328,9 @@ export interface Payment {
 
 export interface FreelanceMetrics {
   totalRevenue: number; // Soma total de clientes freelance
-  revenuePaid: number; // Receita já recebida (em caixa)
+  revenuePaid: number; // Receita já recebida (total acumulado)
   revenuePending: number; // Receita a receber (pendente)
+  monthlyRevenuePaid: number; // Receita recebida NO MÊS ATUAL
   activeFreelance: number; // Freelance ativos
   completedFreelance: number; // Freelance concluídos
   avgProjectValue: number; // Valor médio por projeto
@@ -387,6 +389,7 @@ export const PaymentStatuses = {
   PENDING: 'pending',
   OVERDUE: 'overdue',
   CANCELLED: 'cancelled',
+  INSTALLMENT: 'installment',
 } as const;
 
 export const ClientStatuses = {

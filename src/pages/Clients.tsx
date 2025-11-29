@@ -147,6 +147,7 @@ const Clients: React.FC = () => {
       pending: { label: 'Pendente', className: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' },
       overdue: { label: 'Atrasado', className: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' },
       cancelled: { label: 'Cancelado', className: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' },
+      installment: { label: 'Parcelado', className: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' },
     };
     const variant = variants[status];
     return <Badge className={variant.className}>{variant.label}</Badge>;
@@ -156,6 +157,11 @@ const Clients: React.FC = () => {
   const getFreelancePaymentBadge = (client: Client) => {
     if (client.clientType !== 'freelance') {
       return getPaymentStatusBadge(client.paymentStatus);
+    }
+
+    // Se está marcado como parcelado, mostra badge especial
+    if (client.paymentStatus === 'installment') {
+      return <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">Parcelado</Badge>;
     }
 
     // Para freelance, usar status como proxy de progresso
