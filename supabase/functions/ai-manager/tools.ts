@@ -947,6 +947,174 @@ export const AI_TOOLS: Tool[] = [
       },
     },
   },
+
+  // ========== FERRAMENTAS DE VENDAS/COMERCIAL ==========
+  {
+    type: 'function',
+    function: {
+      name: 'get_sales_summary',
+      description: 'Obtém resumo das atividades de vendas/prospecção. Use para analisar performance comercial, métricas do funil e tendências.',
+      parameters: {
+        type: 'object',
+        properties: {
+          period_days: {
+            type: 'number',
+            description: 'Período em dias para análise (padrão: 30)',
+          },
+          include_funnel: {
+            type: 'boolean',
+            description: 'Incluir dados do funil de vendas',
+          },
+          include_by_service: {
+            type: 'boolean',
+            description: 'Incluir breakdown por tipo de serviço (automação, tráfego, sites, bugs)',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'log_sales_activity',
+      description: 'Registra atividades de vendas do dia. Use quando o usuário informar que fez contatos, ligações, reuniões ou fechou negócios.',
+      parameters: {
+        type: 'object',
+        properties: {
+          contacts_sent: {
+            type: 'number',
+            description: 'Número de contatos/mensagens enviadas',
+          },
+          calls_made: {
+            type: 'number',
+            description: 'Número de ligações realizadas',
+          },
+          meetings_held: {
+            type: 'number',
+            description: 'Número de reuniões realizadas',
+          },
+          proposals_sent: {
+            type: 'number',
+            description: 'Número de propostas enviadas',
+          },
+          leads_qualified: {
+            type: 'number',
+            description: 'Número de leads qualificados',
+          },
+          deals_closed: {
+            type: 'number',
+            description: 'Número de negócios fechados',
+          },
+          revenue_generated: {
+            type: 'number',
+            description: 'Receita gerada com os negócios fechados (em reais)',
+          },
+          service_type: {
+            type: 'string',
+            enum: ['automation', 'traffic', 'sites', 'bugs'],
+            description: 'Tipo de serviço vendido (opcional)',
+          },
+          notes: {
+            type: 'string',
+            description: 'Observações adicionais sobre as atividades',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_sales_patterns',
+      description: 'Analisa padrões e tendências nas atividades de vendas. Use para identificar melhores dias, horários, taxas de conversão e sugerir otimizações.',
+      parameters: {
+        type: 'object',
+        properties: {
+          period_days: {
+            type: 'number',
+            description: 'Período em dias para análise (padrão: 30)',
+          },
+          analysis_type: {
+            type: 'string',
+            enum: ['conversion', 'volume', 'timing', 'service_mix'],
+            description: 'Tipo de análise a realizar',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_sales_strategy',
+      description: 'Cria uma estratégia de vendas baseada na análise dos dados. Use para gerar recomendações acionáveis de melhoria comercial.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: {
+            type: 'string',
+            description: 'Título da estratégia',
+          },
+          description: {
+            type: 'string',
+            description: 'Descrição detalhada da estratégia',
+          },
+          action_items: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Lista de ações específicas a serem tomadas',
+          },
+          based_on_analysis: {
+            type: 'string',
+            description: 'Análise que fundamenta a estratégia',
+          },
+          expected_impact: {
+            type: 'string',
+            description: 'Impacto esperado (ex: "+20% em conversões")',
+          },
+        },
+        required: ['title', 'description', 'action_items'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_sales_streak',
+      description: 'Obtém informações sobre o streak de prospecção do usuário. Use para motivar e acompanhar consistência nas atividades comerciais.',
+      parameters: {
+        type: 'object',
+        properties: {
+          streak_type: {
+            type: 'string',
+            enum: ['daily_prospecting', 'weekly_calls', 'monthly_deals'],
+            description: 'Tipo de streak a consultar (padrão: daily_prospecting)',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'suggest_daily_targets',
+      description: 'Sugere metas diárias de vendas baseadas no histórico e metas mensais. Use para orientar o usuário sobre quantas atividades fazer no dia.',
+      parameters: {
+        type: 'object',
+        properties: {
+          based_on_goal: {
+            type: 'boolean',
+            description: 'Se deve basear nas metas mensais de vendas',
+          },
+        },
+        required: [],
+      },
+    },
+  },
 ];
 
 export type ToolName =
@@ -987,7 +1155,14 @@ export type ToolName =
   | 'get_current_goals'
   | 'set_goal'
   | 'suggest_goals'
-  | 'get_goal_insights';
+  | 'get_goal_insights'
+  // Vendas/Comercial (novas)
+  | 'get_sales_summary'
+  | 'log_sales_activity'
+  | 'get_sales_patterns'
+  | 'create_sales_strategy'
+  | 'get_sales_streak'
+  | 'suggest_daily_targets';
 
 export interface ToolCallResult {
   success: boolean;

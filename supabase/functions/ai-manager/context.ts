@@ -12,7 +12,47 @@ export interface AggregatedContext {
   financial: FinancialContext;
   productivity: ProductivityContext;
   goals: GoalsContext;
+  sales: SalesContext;
   timestamp: string;
+}
+
+interface SalesContext {
+  has_activity: boolean;
+  today: {
+    contacts: number;
+    calls: number;
+    meetings: number;
+    proposals: number;
+    deals: number;
+  };
+  period_30_days: {
+    total_contacts: number;
+    total_calls: number;
+    total_meetings: number;
+    total_deals: number;
+    total_revenue: number;
+    conversion_rate: number;
+  };
+  streak: {
+    current_count: number;
+    longest_count: number;
+    is_active: boolean;
+  };
+  active_goal: {
+    has_goal: boolean;
+    contacts_target: number;
+    contacts_current: number;
+    deals_target: number;
+    deals_current: number;
+    progress_percent: number;
+  } | null;
+  gamification: {
+    level: number;
+    total_points: number;
+    xp_current: number;
+    xp_to_next_level: number;
+    recent_achievements: string[];
+  };
 }
 
 interface GoalsContext {
@@ -284,6 +324,9 @@ export async function aggregateContext(
   // Calculate goals metrics
   const goalsMetrics = calculateGoalsMetrics(goalsData, goalInsights || [], now);
 
+  // Calculate sales metrics
+  const salesMetrics = await calculateSalesMetrics(supabase, userId, today);
+
   return {
     user: {
       id: userId,
@@ -299,6 +342,7 @@ export async function aggregateContext(
     financial: financialMetrics,
     productivity: productivityMetrics,
     goals: goalsMetrics,
+    sales: salesMetrics,
     timestamp: now.toISOString(),
   };
 }
@@ -785,10 +829,13 @@ function calculateGoalsMetrics(
 }
 
 export function formatContextForPrompt(context: AggregatedContext): string {
-  const { user, tasks, clients, projects, team, calendar, payments, financial, productivity, goals } = context;
+  const { user, tasks, clients, projects, team, calendar, payments, financial, productivity, goals, sales } = context;
 
   // Format goals section
   const goalsSection = formatGoalsSection(goals);
+
+  // Format sales section
+  const salesSection = formatSalesSection(sales);
 
   return `### Usuário
 - Nome: ${user.name || 'Não informado'}
@@ -852,7 +899,137 @@ ${clients.top_clients.map((c, i) => `  ${i + 1}. ${c.name}: R$ ${c.mrr.toLocaleS
 ### Tarefas Recentes
 ${tasks.recent_tasks.slice(0, 5).map((t) => `- [${t.priority.toUpperCase()}] ${t.title} (${t.status})${t.client_name ? ` - ${t.client_name}` : ''}`).join('\n')}
 
-${goalsSection}`;
+${goalsSection}
+
+${salesSection}`;
+}
+
+async function calculateSalesMetrics(
+  supabase: SupabaseClient,
+  userId: string,
+  today: string
+): Promise<SalesContext> {
+  // Buscar atividade de hoje
+  const { data: todayActivity } = await supabase
+    .from('sales_daily_activities')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('date', today)
+    .single();
+
+  // Buscar atividades dos últimos 30 dias
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - 30);
+  const { data: activities } = await supabase
+    .from('sales_daily_activities')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('date', startDate.toISOString().split('T')[0])
+    .lte('date', today);
+
+  // Calcular totais do período
+  const totals = (activities || []).reduce(
+    (acc, a) => ({
+      contacts: acc.contacts + (a.contacts_sent || 0),
+      calls: acc.calls + (a.calls_made || 0),
+      meetings: acc.meetings + (a.meetings_held || 0),
+      deals: acc.deals + (a.deals_closed || 0),
+      revenue: acc.revenue + (a.revenue_generated || 0),
+    }),
+    { contacts: 0, calls: 0, meetings: 0, deals: 0, revenue: 0 }
+  );
+
+  const conversionRate = totals.contacts > 0
+    ? Math.round((totals.deals / totals.contacts) * 100 * 100) / 100
+    : 0;
+
+  // Buscar streak
+  const { data: streak } = await supabase
+    .from('user_streaks')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('streak_type', 'daily_prospecting')
+    .single();
+
+  // Verificar se streak está ativo
+  let isStreakActive = false;
+  if (streak?.last_activity_date) {
+    const lastDate = new Date(streak.last_activity_date);
+    const todayDate = new Date(today);
+    const diffDays = Math.floor((todayDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+    isStreakActive = diffDays <= 1;
+  }
+
+  // Buscar meta de vendas ativa
+  const { data: activeGoal } = await supabase
+    .from('sales_goals')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .lte('start_date', today)
+    .gte('end_date', today)
+    .single();
+
+  // Buscar gamification
+  const { data: gamification } = await supabase
+    .from('user_gamification')
+    .select('*')
+    .eq('user_id', userId)
+    .single();
+
+  // Buscar achievements recentes (últimos 7 dias)
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const { data: recentAchievements } = await supabase
+    .from('user_achievements')
+    .select('*, achievement:achievements(name)')
+    .eq('user_id', userId)
+    .gte('unlocked_at', sevenDaysAgo.toISOString())
+    .order('unlocked_at', { ascending: false })
+    .limit(3);
+
+  return {
+    has_activity: !!todayActivity || (activities?.length || 0) > 0,
+    today: {
+      contacts: todayActivity?.contacts_sent || 0,
+      calls: todayActivity?.calls_made || 0,
+      meetings: todayActivity?.meetings_held || 0,
+      proposals: todayActivity?.proposals_sent || 0,
+      deals: todayActivity?.deals_closed || 0,
+    },
+    period_30_days: {
+      total_contacts: totals.contacts,
+      total_calls: totals.calls,
+      total_meetings: totals.meetings,
+      total_deals: totals.deals,
+      total_revenue: totals.revenue,
+      conversion_rate: conversionRate,
+    },
+    streak: {
+      current_count: isStreakActive ? (streak?.current_count || 0) : 0,
+      longest_count: streak?.longest_count || 0,
+      is_active: isStreakActive,
+    },
+    active_goal: activeGoal ? {
+      has_goal: true,
+      contacts_target: activeGoal.contacts_target || 0,
+      contacts_current: totals.contacts,
+      deals_target: activeGoal.deals_target || 0,
+      deals_current: totals.deals,
+      progress_percent: activeGoal.contacts_target > 0
+        ? Math.round((totals.contacts / activeGoal.contacts_target) * 100)
+        : 0,
+    } : null,
+    gamification: {
+      level: gamification?.current_level || 1,
+      total_points: gamification?.total_points || 0,
+      xp_current: gamification?.xp_current || 0,
+      xp_to_next_level: gamification?.xp_to_next_level || 100,
+      recent_achievements: (recentAchievements || []).map(
+        (a: { achievement?: { name: string } }) => a.achievement?.name || ''
+      ).filter(Boolean),
+    },
+  };
 }
 
 function formatGoalsSection(goals: GoalsContext): string {
@@ -896,6 +1073,63 @@ function formatGoalsSection(goals: GoalsContext): string {
     goals.insights.slice(0, 3).forEach(insight => {
       section += `\n- [${insight.type.toUpperCase()}] ${insight.message}`;
     });
+  }
+
+  return section;
+}
+
+function formatSalesSection(sales: SalesContext): string {
+  if (!sales.has_activity) {
+    return `### Vendas/Prospecção
+- **Sem atividades de vendas registradas**
+- Comece a registrar suas atividades comerciais para ter insights!
+- Dica: Informe quantos contatos, ligações e reuniões você faz diariamente`;
+  }
+
+  const streakEmoji = sales.streak.is_active
+    ? (sales.streak.current_count >= 7 ? '🔥' : '✨')
+    : '💤';
+
+  let section = `### Vendas/Prospecção
+
+**Atividades de Hoje:**
+- Contatos enviados: ${sales.today.contacts}
+- Ligações realizadas: ${sales.today.calls}
+- Reuniões: ${sales.today.meetings}
+- Propostas: ${sales.today.proposals}
+- Negócios fechados: ${sales.today.deals}
+
+**Últimos 30 dias:**
+- Total de contatos: ${sales.period_30_days.total_contacts}
+- Total de ligações: ${sales.period_30_days.total_calls}
+- Total de reuniões: ${sales.period_30_days.total_meetings}
+- Negócios fechados: ${sales.period_30_days.total_deals}
+- Receita gerada: R$ ${sales.period_30_days.total_revenue.toLocaleString('pt-BR')}
+- Taxa de conversão: ${sales.period_30_days.conversion_rate}%
+
+**Streak de Prospecção:** ${streakEmoji}
+- Dias consecutivos: ${sales.streak.current_count}
+- Maior streak: ${sales.streak.longest_count} dias
+- Status: ${sales.streak.is_active ? 'Ativo' : 'Inativo'}`;
+
+  if (sales.active_goal) {
+    section += `
+
+**Meta de Vendas Ativa:**
+- Contatos: ${sales.active_goal.contacts_current}/${sales.active_goal.contacts_target} (${sales.active_goal.progress_percent}%)
+- Negócios: ${sales.active_goal.deals_current}/${sales.active_goal.deals_target}`;
+  }
+
+  section += `
+
+**Gamificação:**
+- Nível: ${sales.gamification.level}
+- Pontos totais: ${sales.gamification.total_points}
+- XP: ${sales.gamification.xp_current}/${sales.gamification.xp_to_next_level}`;
+
+  if (sales.gamification.recent_achievements.length > 0) {
+    section += `
+- Conquistas recentes: ${sales.gamification.recent_achievements.join(', ')}`;
   }
 
   return section;

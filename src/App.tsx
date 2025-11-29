@@ -24,6 +24,7 @@ import Pricing from './pages/Pricing';
 import Pomodoro from './pages/Pomodoro';
 import Templates from './pages/Templates';
 import Prospects from './pages/Prospects';
+import Commercial from './pages/Commercial';
 import './index.css';
 
 function App() {
@@ -101,6 +102,7 @@ function App() {
             <Route path="calendar" element={<Calendar />} />
             <Route path="clients" element={<Clients />} />
             <Route path="prospects" element={<Prospects />} />
+            <Route path="comercial" element={<Commercial />} />
             <Route path="projects" element={<Projects />} />
             <Route path="projects/:id" element={<ProjectDetail />} />
             <Route path="tags" element={<Tags />} />

@@ -12,6 +12,7 @@ import {
   Clock,
   Crown,
   Target,
+  TrendingUp,
 } from 'lucide-react'
 
 import {
@@ -33,6 +34,7 @@ const menuItems = [
   { path: '/tasks', label: 'Tarefas', icon: CheckSquare },
   { path: '/calendar', label: 'Calendário', icon: Calendar },
   { path: '/prospects', label: 'Pipeline', icon: Target },
+  { path: '/comercial', label: 'Comercial', icon: TrendingUp },
   { path: '/clients', label: 'Clientes', icon: Building2 },
   { path: '/projects', label: 'Projetos', icon: FolderKanban },
   { path: '/tags', label: 'Tags', icon: Tag },

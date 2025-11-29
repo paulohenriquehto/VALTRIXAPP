@@ -14,6 +14,7 @@ import {
   Settings,
   User,
   Target,
+  TrendingUp,
 } from "lucide-react";
 import { Dock, DockIcon, DockSeparator, DockLabel } from "@/components/ui/dock";
 import {
@@ -31,6 +32,7 @@ const primaryNavItems = [
   { path: "/tasks", label: "Tarefas", icon: CheckSquare },
   { path: "/calendar", label: "Calendário", icon: Calendar },
   { path: "/prospects", label: "Pipeline", icon: Target },
+  { path: "/comercial", label: "Comercial", icon: TrendingUp },
   { path: "/clients", label: "Clientes", icon: Building2 },
   { path: "/projects", label: "Projetos", icon: FolderKanban },
 ];

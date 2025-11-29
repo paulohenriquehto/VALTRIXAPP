@@ -102,6 +102,20 @@ export async function executeToolCall(
       case 'get_goal_insights':
         return await getGoalInsights(supabase, userId);
 
+      // Ferramentas de Vendas/Comercial
+      case 'get_sales_summary':
+        return await getSalesSummary(supabase, userId, args);
+      case 'log_sales_activity':
+        return await logSalesActivity(supabase, userId, args);
+      case 'get_sales_patterns':
+        return await getSalesPatterns(supabase, userId, args);
+      case 'create_sales_strategy':
+        return await createSalesStrategy(supabase, userId, args);
+      case 'get_sales_streak':
+        return await getSalesStreak(supabase, userId, args);
+      case 'suggest_daily_targets':
+        return await suggestDailyTargets(supabase, userId, args);
+
       default:
         return { success: false, error: `Unknown tool: ${toolName}` };
     }
@@ -2432,6 +2446,600 @@ async function getGoalInsights(
     data: {
       insights,
       main_message: insights[0]?.message || 'Você está no caminho certo!',
+    },
+  };
+}
+
+// ========== FERRAMENTAS DE VENDAS/COMERCIAL ==========
+
+async function getSalesSummary(
+  supabase: SupabaseClient,
+  userId: string,
+  args: Record<string, unknown>
+): Promise<ToolCallResult> {
+  const periodDays = (args.period_days as number) || 30;
+  const includeFunnel = args.include_funnel as boolean ?? true;
+  const includeByService = args.include_by_service as boolean ?? true;
+
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - periodDays);
+
+  // Buscar atividades do período
+  const { data: activities, error } = await supabase
+    .from('sales_daily_activities')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('date', startDate.toISOString().split('T')[0])
+    .lte('date', endDate.toISOString().split('T')[0])
+    .order('date', { ascending: false });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  // Calcular totais
+  const totals = (activities || []).reduce(
+    (acc, a) => ({
+      contacts: acc.contacts + (a.contacts_sent || 0),
+      calls: acc.calls + (a.calls_made || 0),
+      meetings: acc.meetings + (a.meetings_held || 0),
+      proposals: acc.proposals + (a.proposals_sent || 0),
+      leads: acc.leads + (a.leads_qualified || 0),
+      deals: acc.deals + (a.deals_closed || 0),
+      revenue: acc.revenue + (a.revenue_generated || 0),
+    }),
+    { contacts: 0, calls: 0, meetings: 0, proposals: 0, leads: 0, deals: 0, revenue: 0 }
+  );
+
+  const daysWithActivity = activities?.length || 1;
+
+  // Calcular médias
+  const averages = {
+    contacts_per_day: Math.round(totals.contacts / daysWithActivity),
+    calls_per_day: Math.round(totals.calls / daysWithActivity),
+    meetings_per_day: Math.round((totals.meetings / daysWithActivity) * 10) / 10,
+    conversion_rate: totals.contacts > 0
+      ? Math.round((totals.deals / totals.contacts) * 100 * 100) / 100
+      : 0,
+  };
+
+  // Dados do funil
+  let funnel = undefined;
+  if (includeFunnel) {
+    funnel = [
+      { stage: 'Contatos', count: totals.contacts, color: '#3B82F6' },
+      { stage: 'Qualificados', count: totals.leads, conversion: totals.contacts > 0 ? Math.round((totals.leads / totals.contacts) * 100) : 0, color: '#8B5CF6' },
+      { stage: 'Reuniões', count: totals.meetings, conversion: totals.leads > 0 ? Math.round((totals.meetings / totals.leads) * 100) : 0, color: '#F59E0B' },
+      { stage: 'Propostas', count: totals.proposals, conversion: totals.meetings > 0 ? Math.round((totals.proposals / totals.meetings) * 100) : 0, color: '#F97316' },
+      { stage: 'Fechados', count: totals.deals, conversion: totals.proposals > 0 ? Math.round((totals.deals / totals.proposals) * 100) : 0, color: '#10B981' },
+    ];
+  }
+
+  // Por serviço
+  let byService = undefined;
+  if (includeByService) {
+    byService = (activities || []).reduce(
+      (acc, a) => ({
+        automation: acc.automation + (a.service_automation || 0),
+        traffic: acc.traffic + (a.service_traffic || 0),
+        sites: acc.sites + (a.service_sites || 0),
+        bugs: acc.bugs + (a.service_bugs || 0),
+      }),
+      { automation: 0, traffic: 0, sites: 0, bugs: 0 }
+    );
+  }
+
+  // Atividade de hoje
+  const today = new Date().toISOString().split('T')[0];
+  const todayActivity = activities?.find(a => a.date === today);
+
+  return {
+    success: true,
+    data: {
+      period: `${periodDays} dias`,
+      days_with_activity: daysWithActivity,
+      totals,
+      averages,
+      funnel,
+      by_service: byService,
+      today: todayActivity ? {
+        contacts: todayActivity.contacts_sent || 0,
+        calls: todayActivity.calls_made || 0,
+        meetings: todayActivity.meetings_held || 0,
+        deals: todayActivity.deals_closed || 0,
+      } : null,
+    },
+  };
+}
+
+async function logSalesActivity(
+  supabase: SupabaseClient,
+  userId: string,
+  args: Record<string, unknown>
+): Promise<ToolCallResult> {
+  const today = new Date().toISOString().split('T')[0];
+
+  // Buscar atividade existente de hoje
+  const { data: existing } = await supabase
+    .from('sales_daily_activities')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('date', today)
+    .single();
+
+  // Preparar dados para upsert
+  const updateData: Record<string, unknown> = {
+    user_id: userId,
+    date: today,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (args.contacts_sent !== undefined) {
+    updateData.contacts_sent = (existing?.contacts_sent || 0) + (args.contacts_sent as number);
+  }
+  if (args.calls_made !== undefined) {
+    updateData.calls_made = (existing?.calls_made || 0) + (args.calls_made as number);
+  }
+  if (args.meetings_held !== undefined) {
+    updateData.meetings_held = (existing?.meetings_held || 0) + (args.meetings_held as number);
+  }
+  if (args.proposals_sent !== undefined) {
+    updateData.proposals_sent = (existing?.proposals_sent || 0) + (args.proposals_sent as number);
+  }
+  if (args.leads_qualified !== undefined) {
+    updateData.leads_qualified = (existing?.leads_qualified || 0) + (args.leads_qualified as number);
+  }
+  if (args.deals_closed !== undefined) {
+    updateData.deals_closed = (existing?.deals_closed || 0) + (args.deals_closed as number);
+  }
+  if (args.revenue_generated !== undefined) {
+    updateData.revenue_generated = (existing?.revenue_generated || 0) + (args.revenue_generated as number);
+  }
+  if (args.notes) {
+    updateData.notes = args.notes as string;
+  }
+
+  // Atualizar por serviço se informado
+  if (args.service_type && args.deals_closed) {
+    const serviceField = `service_${args.service_type}`;
+    updateData[serviceField] = (existing?.[serviceField] || 0) + (args.deals_closed as number);
+  }
+
+  const { data, error } = await supabase
+    .from('sales_daily_activities')
+    .upsert(updateData, { onConflict: 'user_id,date' })
+    .select()
+    .single();
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  // Atualizar streak de prospecção se teve atividade relevante
+  if (args.contacts_sent || args.calls_made || args.meetings_held) {
+    await updateSalesStreak(supabase, userId, 'daily_prospecting', today);
+  }
+
+  await logAIAction(supabase, userId, 'log_sales_activity', {
+    date: today,
+    activities: args,
+  });
+
+  // Calcular mensagem de feedback
+  const activityList: string[] = [];
+  if (args.contacts_sent) activityList.push(`${args.contacts_sent} contatos`);
+  if (args.calls_made) activityList.push(`${args.calls_made} ligações`);
+  if (args.meetings_held) activityList.push(`${args.meetings_held} reuniões`);
+  if (args.proposals_sent) activityList.push(`${args.proposals_sent} propostas`);
+  if (args.deals_closed) activityList.push(`${args.deals_closed} negócios fechados`);
+
+  return {
+    success: true,
+    data: {
+      message: `Atividades registradas: ${activityList.join(', ')}! 🎯`,
+      today_totals: {
+        contacts: data.contacts_sent || 0,
+        calls: data.calls_made || 0,
+        meetings: data.meetings_held || 0,
+        proposals: data.proposals_sent || 0,
+        deals: data.deals_closed || 0,
+        revenue: data.revenue_generated || 0,
+      },
+    },
+  };
+}
+
+async function updateSalesStreak(
+  supabase: SupabaseClient,
+  userId: string,
+  streakType: string,
+  date: string
+): Promise<void> {
+  const { data: existing } = await supabase
+    .from('user_streaks')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('streak_type', streakType)
+    .single();
+
+  if (!existing) {
+    await supabase
+      .from('user_streaks')
+      .insert({
+        user_id: userId,
+        streak_type: streakType,
+        current_count: 1,
+        longest_count: 1,
+        last_activity_date: date,
+      });
+    return;
+  }
+
+  const lastDate = new Date(existing.last_activity_date || date);
+  const currentDate = new Date(date);
+  const diffTime = currentDate.getTime() - lastDate.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  let newCount = existing.current_count;
+  if (diffDays === 1) {
+    newCount = existing.current_count + 1;
+  } else if (diffDays > 1) {
+    newCount = 1;
+  }
+
+  if (diffDays >= 0) {
+    await supabase
+      .from('user_streaks')
+      .update({
+        current_count: newCount,
+        longest_count: Math.max(existing.longest_count, newCount),
+        last_activity_date: date,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existing.id);
+  }
+}
+
+async function getSalesPatterns(
+  supabase: SupabaseClient,
+  userId: string,
+  args: Record<string, unknown>
+): Promise<ToolCallResult> {
+  const periodDays = (args.period_days as number) || 30;
+  const analysisType = (args.analysis_type as string) || 'conversion';
+
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - periodDays);
+
+  const { data: activities, error } = await supabase
+    .from('sales_daily_activities')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('date', startDate.toISOString().split('T')[0])
+    .lte('date', endDate.toISOString().split('T')[0])
+    .order('date', { ascending: true });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  let analysis: Record<string, unknown> = {};
+
+  switch (analysisType) {
+    case 'conversion': {
+      const totals = (activities || []).reduce(
+        (acc, a) => ({
+          contacts: acc.contacts + (a.contacts_sent || 0),
+          leads: acc.leads + (a.leads_qualified || 0),
+          meetings: acc.meetings + (a.meetings_held || 0),
+          proposals: acc.proposals + (a.proposals_sent || 0),
+          deals: acc.deals + (a.deals_closed || 0),
+        }),
+        { contacts: 0, leads: 0, meetings: 0, proposals: 0, deals: 0 }
+      );
+
+      analysis = {
+        type: 'conversion',
+        rates: {
+          contact_to_lead: totals.contacts > 0 ? Math.round((totals.leads / totals.contacts) * 100) : 0,
+          lead_to_meeting: totals.leads > 0 ? Math.round((totals.meetings / totals.leads) * 100) : 0,
+          meeting_to_proposal: totals.meetings > 0 ? Math.round((totals.proposals / totals.meetings) * 100) : 0,
+          proposal_to_deal: totals.proposals > 0 ? Math.round((totals.deals / totals.proposals) * 100) : 0,
+          overall: totals.contacts > 0 ? Math.round((totals.deals / totals.contacts) * 100 * 10) / 10 : 0,
+        },
+        insights: [],
+      };
+
+      // Gerar insights
+      const rates = analysis.rates as Record<string, number>;
+      const insights: string[] = [];
+      if (rates.contact_to_lead < 30) {
+        insights.push('Taxa de qualificação baixa. Considere melhorar o script de abordagem inicial.');
+      }
+      if (rates.meeting_to_proposal < 50) {
+        insights.push('Muitas reuniões não resultam em propostas. Revise a qualificação pré-reunião.');
+      }
+      if (rates.proposal_to_deal < 30) {
+        insights.push('Fechamento precisa de atenção. Considere técnicas de follow-up mais efetivas.');
+      }
+      if (rates.overall > 5) {
+        insights.push('Sua taxa de conversão geral está acima da média! Continue assim.');
+      }
+      analysis.insights = insights;
+      break;
+    }
+    case 'volume': {
+      // Análise por dia da semana
+      const byDayOfWeek: Record<string, { contacts: number; deals: number; count: number }> = {};
+      const dayNames = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
+      (activities || []).forEach(a => {
+        const dayOfWeek = dayNames[new Date(a.date).getDay()];
+        if (!byDayOfWeek[dayOfWeek]) {
+          byDayOfWeek[dayOfWeek] = { contacts: 0, deals: 0, count: 0 };
+        }
+        byDayOfWeek[dayOfWeek].contacts += a.contacts_sent || 0;
+        byDayOfWeek[dayOfWeek].deals += a.deals_closed || 0;
+        byDayOfWeek[dayOfWeek].count++;
+      });
+
+      // Encontrar melhor dia
+      let bestDay = '';
+      let bestAvg = 0;
+      Object.entries(byDayOfWeek).forEach(([day, data]) => {
+        const avg = data.count > 0 ? data.contacts / data.count : 0;
+        if (avg > bestAvg) {
+          bestAvg = avg;
+          bestDay = day;
+        }
+      });
+
+      analysis = {
+        type: 'volume',
+        by_day_of_week: byDayOfWeek,
+        best_day: bestDay,
+        recommendation: bestDay ? `Seu melhor dia é ${bestDay}. Considere intensificar prospecção neste dia.` : 'Dados insuficientes para análise.',
+      };
+      break;
+    }
+    case 'service_mix': {
+      const byService = (activities || []).reduce(
+        (acc, a) => ({
+          automation: acc.automation + (a.service_automation || 0),
+          traffic: acc.traffic + (a.service_traffic || 0),
+          sites: acc.sites + (a.service_sites || 0),
+          bugs: acc.bugs + (a.service_bugs || 0),
+        }),
+        { automation: 0, traffic: 0, sites: 0, bugs: 0 }
+      );
+
+      const total = byService.automation + byService.traffic + byService.sites + byService.bugs;
+
+      analysis = {
+        type: 'service_mix',
+        by_service: byService,
+        percentages: {
+          automation: total > 0 ? Math.round((byService.automation / total) * 100) : 0,
+          traffic: total > 0 ? Math.round((byService.traffic / total) * 100) : 0,
+          sites: total > 0 ? Math.round((byService.sites / total) * 100) : 0,
+          bugs: total > 0 ? Math.round((byService.bugs / total) * 100) : 0,
+        },
+        recommendation: 'Diversifique sua oferta de serviços para reduzir dependência.',
+      };
+      break;
+    }
+    default:
+      analysis = { type: 'unknown', message: 'Tipo de análise não reconhecido.' };
+  }
+
+  return {
+    success: true,
+    data: {
+      period: `${periodDays} dias`,
+      analysis,
+    },
+  };
+}
+
+async function createSalesStrategy(
+  supabase: SupabaseClient,
+  userId: string,
+  args: Record<string, unknown>
+): Promise<ToolCallResult> {
+  const { data, error } = await supabase
+    .from('sales_strategies')
+    .insert({
+      user_id: userId,
+      title: args.title as string,
+      description: args.description as string,
+      action_items: args.action_items as string[],
+      based_on_analysis: args.based_on_analysis as string || null,
+      expected_impact: args.expected_impact as string || null,
+      status: 'suggested',
+    })
+    .select()
+    .single();
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  await logAIAction(supabase, userId, 'create_sales_strategy', {
+    strategy_id: data.id,
+    title: args.title,
+  });
+
+  return {
+    success: true,
+    data: {
+      message: `Estratégia "${args.title}" criada com sucesso! 📈`,
+      strategy: {
+        id: data.id,
+        title: data.title,
+        description: data.description,
+        action_items: data.action_items,
+        expected_impact: data.expected_impact,
+        status: data.status,
+      },
+    },
+  };
+}
+
+async function getSalesStreak(
+  supabase: SupabaseClient,
+  userId: string,
+  args: Record<string, unknown>
+): Promise<ToolCallResult> {
+  const streakType = (args.streak_type as string) || 'daily_prospecting';
+
+  const { data: streak, error } = await supabase
+    .from('user_streaks')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('streak_type', streakType)
+    .single();
+
+  if (error && error.code !== 'PGRST116') {
+    return { success: false, error: error.message };
+  }
+
+  if (!streak) {
+    return {
+      success: true,
+      data: {
+        has_streak: false,
+        message: 'Você ainda não iniciou um streak de prospecção. Comece hoje! 🚀',
+        current_count: 0,
+        longest_count: 0,
+      },
+    };
+  }
+
+  // Verificar se streak ainda está ativo (última atividade foi ontem ou hoje)
+  const today = new Date().toISOString().split('T')[0];
+  const lastActivity = streak.last_activity_date;
+  const lastDate = new Date(lastActivity);
+  const todayDate = new Date(today);
+  const diffDays = Math.floor((todayDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+
+  const isActive = diffDays <= 1;
+  const streakMilestones = [3, 7, 14, 30, 60, 90, 180, 365];
+  const nextMilestone = streakMilestones.find(m => m > streak.current_count) || null;
+
+  let motivationalMessage = '';
+  if (!isActive) {
+    motivationalMessage = `Seu streak foi interrompido após ${streak.current_count} dias. Comece um novo hoje! 💪`;
+  } else if (streak.current_count >= 30) {
+    motivationalMessage = `Incrível! ${streak.current_count} dias consecutivos! Você é uma máquina de vendas! 🔥`;
+  } else if (streak.current_count >= 7) {
+    motivationalMessage = `Uma semana de prospecção consistente! Continue assim! 🌟`;
+  } else if (streak.current_count >= 3) {
+    motivationalMessage = `${streak.current_count} dias seguidos! O hábito está se formando! 💫`;
+  } else {
+    motivationalMessage = `${streak.current_count} dia(s) de streak. Mantenha o ritmo! 🎯`;
+  }
+
+  return {
+    success: true,
+    data: {
+      has_streak: true,
+      is_active: isActive,
+      current_count: isActive ? streak.current_count : 0,
+      longest_count: streak.longest_count,
+      last_activity_date: streak.last_activity_date,
+      next_milestone: nextMilestone,
+      days_to_milestone: nextMilestone ? nextMilestone - streak.current_count : null,
+      message: motivationalMessage,
+    },
+  };
+}
+
+async function suggestDailyTargets(
+  supabase: SupabaseClient,
+  userId: string,
+  args: Record<string, unknown>
+): Promise<ToolCallResult> {
+  const basedOnGoal = args.based_on_goal as boolean ?? true;
+
+  // Buscar média dos últimos 30 dias
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - 30);
+
+  const { data: activities } = await supabase
+    .from('sales_daily_activities')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('date', startDate.toISOString().split('T')[0])
+    .lte('date', endDate.toISOString().split('T')[0]);
+
+  const daysWithActivity = activities?.length || 1;
+  const totals = (activities || []).reduce(
+    (acc, a) => ({
+      contacts: acc.contacts + (a.contacts_sent || 0),
+      calls: acc.calls + (a.calls_made || 0),
+      meetings: acc.meetings + (a.meetings_held || 0),
+    }),
+    { contacts: 0, calls: 0, meetings: 0 }
+  );
+
+  // Média histórica
+  const avgContacts = Math.round(totals.contacts / daysWithActivity);
+  const avgCalls = Math.round(totals.calls / daysWithActivity);
+  const avgMeetings = Math.round((totals.meetings / daysWithActivity) * 10) / 10;
+
+  // Buscar meta ativa se houver
+  let goalMultiplier = 1.1; // 10% acima da média como padrão
+  if (basedOnGoal) {
+    const today = new Date().toISOString().split('T')[0];
+    const { data: activeGoal } = await supabase
+      .from('sales_goals')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .lte('start_date', today)
+      .gte('end_date', today)
+      .single();
+
+    if (activeGoal) {
+      // Calcular dias restantes no período
+      const endGoalDate = new Date(activeGoal.end_date);
+      const todayDate = new Date(today);
+      const daysRemaining = Math.max(1, Math.ceil((endGoalDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24)));
+
+      // Ajustar multiplicador baseado na meta
+      if (activeGoal.contacts_target) {
+        const remainingContacts = activeGoal.contacts_target - (totals.contacts || 0);
+        const neededPerDay = remainingContacts / daysRemaining;
+        goalMultiplier = avgContacts > 0 ? neededPerDay / avgContacts : 1.2;
+      }
+    }
+  }
+
+  // Sugerir metas com base no multiplicador
+  const suggestedContacts = Math.max(5, Math.round(avgContacts * goalMultiplier));
+  const suggestedCalls = Math.max(3, Math.round(avgCalls * goalMultiplier));
+  const suggestedMeetings = Math.max(1, Math.round(avgMeetings * goalMultiplier));
+
+  return {
+    success: true,
+    data: {
+      suggested_targets: {
+        contacts: suggestedContacts,
+        calls: suggestedCalls,
+        meetings: suggestedMeetings,
+      },
+      based_on: {
+        historical_average: {
+          contacts: avgContacts,
+          calls: avgCalls,
+          meetings: avgMeetings,
+        },
+        multiplier: Math.round(goalMultiplier * 100) / 100,
+      },
+      message: `Metas sugeridas para hoje: ${suggestedContacts} contatos, ${suggestedCalls} ligações, ${suggestedMeetings} reunião(ões). Vamos lá! 🎯`,
     },
   };
 }
