@@ -11,6 +11,7 @@ import {
   BarChart3,
   Clock,
   Crown,
+  Target,
 } from 'lucide-react'
 
 import {
@@ -31,6 +32,7 @@ const menuItems = [
   { path: '/dashboard', label: 'Dashboard', icon: Home },
   { path: '/tasks', label: 'Tarefas', icon: CheckSquare },
   { path: '/calendar', label: 'Calendário', icon: Calendar },
+  { path: '/prospects', label: 'Pipeline', icon: Target },
   { path: '/clients', label: 'Clientes', icon: Building2 },
   { path: '/projects', label: 'Projetos', icon: FolderKanban },
   { path: '/tags', label: 'Tags', icon: Tag },

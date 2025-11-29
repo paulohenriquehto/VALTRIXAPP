@@ -127,14 +127,7 @@ const Login: React.FC = () => {
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="flex flex-col space-y-2">
-          <div className="text-sm text-center text-gray-500 dark:text-gray-400">
-            Não tem uma conta?{' '}
-            <Link to="/register" className="font-medium text-primary hover:underline">
-              Cadastre-se
-            </Link>
-          </div>
-        </CardFooter>
+        {/* Cadastro desativado temporariamente */}
       </Card>
     </div>
   );

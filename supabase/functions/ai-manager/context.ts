@@ -5,9 +5,39 @@ export interface AggregatedContext {
   user: UserContext;
   tasks: TasksContext;
   clients: ClientsContext;
+  projects: ProjectsContext;
+  team: TeamContext;
+  calendar: CalendarContext;
+  payments: PaymentsContext;
   financial: FinancialContext;
   productivity: ProductivityContext;
+  goals: GoalsContext;
   timestamp: string;
+}
+
+interface GoalsContext {
+  has_goals: boolean;
+  is_confirmed: boolean;
+  mrr: GoalMetric;
+  clients: GoalMetric;
+  tasks: GoalMetric;
+  projects: GoalMetric;
+  day_of_month: number;
+  days_in_month: number;
+  expected_progress: number;
+  insights: Array<{
+    type: string;
+    metric: string;
+    message: string;
+    priority: number;
+  }>;
+}
+
+interface GoalMetric {
+  target: number;
+  current: number;
+  progress: number;
+  status: 'behind' | 'on_track' | 'ahead' | 'achieved';
 }
 
 interface UserContext {
@@ -63,18 +93,77 @@ interface ProductivityContext {
   completion_rate: number; // % de tarefas concluídas vs criadas
 }
 
+interface ProjectsContext {
+  total: number;
+  active: number;
+  on_hold: number;
+  completed_this_month: number;
+  total_budget: number;
+  recent_projects: Array<{
+    id: string;
+    name: string;
+    status: string;
+    client_name: string | null;
+    end_date: string | null;
+    tasks_count: number;
+  }>;
+}
+
+interface TeamContext {
+  total_members: number;
+  active: number;
+  by_department: Record<string, number>;
+  by_role: Record<string, number>;
+  recent_hires: Array<{
+    id: string;
+    name: string;
+    role: string;
+    department: string;
+    hire_date: string;
+  }>;
+}
+
+interface CalendarContext {
+  events_today: number;
+  events_this_week: number;
+  upcoming_deadlines: Array<{
+    id: string;
+    title: string;
+    type: 'task' | 'project' | 'payment';
+    date: string;
+    priority?: string;
+  }>;
+}
+
+interface PaymentsContext {
+  pending_count: number;
+  pending_amount: number;
+  overdue_count: number;
+  overdue_amount: number;
+  received_this_month: number;
+  upcoming_7_days: Array<{
+    id: string;
+    client_name: string;
+    amount: number;
+    due_date: string;
+    status: string;
+  }>;
+}
+
 export async function aggregateContext(
   supabase: SupabaseClient,
   userId: string
 ): Promise<AggregatedContext> {
   const now = new Date();
+  const today = now.toISOString().split('T')[0];
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
   const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()).toISOString();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const endOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (7 - now.getDay())).toISOString();
 
   // Fetch user data
   const { data: userData } = await supabase
-    .from('profiles')
+    .from('users')
     .select('id, full_name, email')
     .eq('id', userId)
     .single();
@@ -90,10 +179,10 @@ export async function aggregateContext(
       due_date,
       created_at,
       completed_at,
-      clients(name),
-      projects(name)
+      project_id,
+      projects(name, clients(name))
     `)
-    .eq('user_id', userId)
+    .eq('created_by', userId)
     .order('created_at', { ascending: false });
 
   // Fetch clients with MRR calculation
@@ -101,13 +190,72 @@ export async function aggregateContext(
     .from('clients')
     .select(`
       id,
-      name,
+      company_name,
       status,
-      mrr,
+      monthly_value,
       created_at
     `)
-    .eq('user_id', userId)
+    .eq('created_by', userId)
     .eq('status', 'active');
+
+  // Fetch projects with client info
+  const { data: projects } = await supabase
+    .from('projects')
+    .select(`
+      id,
+      name,
+      status,
+      budget,
+      end_date,
+      created_at,
+      client_id,
+      clients(company_name)
+    `)
+    .eq('created_by', userId)
+    .order('updated_at', { ascending: false });
+
+  // Fetch team members (linked to current user's team)
+  const { data: teamMembers } = await supabase
+    .from('team_members')
+    .select(`
+      id,
+      role,
+      department,
+      status,
+      hire_date,
+      salary,
+      user_id,
+      users:user_id(full_name, email)
+    `)
+    .order('hire_date', { ascending: false });
+
+  // Fetch payments
+  const { data: payments } = await supabase
+    .from('payments')
+    .select(`
+      id,
+      amount,
+      due_date,
+      paid_date,
+      status,
+      client_id,
+      clients(company_name)
+    `)
+    .order('due_date', { ascending: true });
+
+  // Fetch goals for current month
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+  const { data: goalsData } = await supabase
+    .from('goals')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('month', monthStart)
+    .single();
+
+  // Fetch goal insights
+  const { data: goalInsights } = await supabase.rpc('generate_goal_insights', {
+    p_user_id: userId
+  });
 
   // Calculate task metrics
   const taskMetrics = calculateTaskMetrics(tasks || [], startOfDay, startOfWeek);
@@ -121,6 +269,21 @@ export async function aggregateContext(
   // Calculate productivity metrics
   const productivityMetrics = calculateProductivityMetrics(tasks || [], startOfDay, startOfWeek);
 
+  // Calculate projects metrics
+  const projectsMetrics = calculateProjectsMetrics(projects || [], tasks || [], startOfMonth);
+
+  // Calculate team metrics
+  const teamMetrics = calculateTeamMetrics(teamMembers || [], startOfMonth);
+
+  // Calculate calendar/deadline metrics
+  const calendarMetrics = calculateCalendarMetrics(tasks || [], projects || [], payments || [], today, endOfWeek);
+
+  // Calculate payments metrics
+  const paymentsMetrics = calculatePaymentsMetrics(payments || [], today, startOfMonth);
+
+  // Calculate goals metrics
+  const goalsMetrics = calculateGoalsMetrics(goalsData, goalInsights || [], now);
+
   return {
     user: {
       id: userId,
@@ -129,8 +292,13 @@ export async function aggregateContext(
     },
     tasks: taskMetrics,
     clients: clientMetrics,
+    projects: projectsMetrics,
+    team: teamMetrics,
+    calendar: calendarMetrics,
+    payments: paymentsMetrics,
     financial: financialMetrics,
     productivity: productivityMetrics,
+    goals: goalsMetrics,
     timestamp: now.toISOString(),
   };
 }
@@ -144,8 +312,7 @@ function calculateTaskMetrics(
     due_date: string | null;
     created_at: string;
     completed_at: string | null;
-    clients: { name: string } | null;
-    projects: { name: string } | null;
+    projects: { name: string; clients: { company_name: string } | null } | null;
   }>,
   startOfDay: string,
   startOfWeek: string
@@ -185,7 +352,7 @@ function calculateTaskMetrics(
     status: t.status,
     priority: t.priority,
     due_date: t.due_date,
-    client_name: t.clients?.name || null,
+    client_name: t.projects?.clients?.company_name || null,
     project_name: t.projects?.name || null,
   }));
 
@@ -206,9 +373,9 @@ function calculateTaskMetrics(
 function calculateClientMetrics(
   clients: Array<{
     id: string;
-    name: string;
+    company_name: string;
     status: string;
-    mrr: number | null;
+    monthly_value: number | null;
     created_at: string;
   }>,
   startOfMonth: string
@@ -217,11 +384,11 @@ function calculateClientMetrics(
   const newThisMonth = clients.filter((c) => c.created_at >= startOfMonth).length;
 
   // Sort by MRR and get top clients
-  const sortedByMrr = [...activeClients].sort((a, b) => (b.mrr || 0) - (a.mrr || 0));
+  const sortedByMrr = [...activeClients].sort((a, b) => (b.monthly_value || 0) - (a.monthly_value || 0));
   const topClients = sortedByMrr.slice(0, 5).map((c) => ({
     id: c.id,
-    name: c.name,
-    mrr: c.mrr || 0,
+    name: c.company_name,
+    mrr: c.monthly_value || 0,
     tasks_count: 0, // Would need a join to get this
   }));
 
@@ -236,16 +403,16 @@ function calculateClientMetrics(
 function calculateFinancialMetrics(
   clients: Array<{
     id: string;
-    name: string;
-    mrr: number | null;
+    company_name: string;
+    monthly_value: number | null;
   }>
 ): FinancialContext {
-  const totalMrr = clients.reduce((sum, c) => sum + (c.mrr || 0), 0);
+  const totalMrr = clients.reduce((sum, c) => sum + (c.monthly_value || 0), 0);
   const avgClientValue = clients.length > 0 ? totalMrr / clients.length : 0;
 
   // Calculate revenue concentration (top 3 clients)
-  const sortedByMrr = [...clients].sort((a, b) => (b.mrr || 0) - (a.mrr || 0));
-  const top3Mrr = sortedByMrr.slice(0, 3).reduce((sum, c) => sum + (c.mrr || 0), 0);
+  const sortedByMrr = [...clients].sort((a, b) => (b.monthly_value || 0) - (a.monthly_value || 0));
+  const top3Mrr = sortedByMrr.slice(0, 3).reduce((sum, c) => sum + (c.monthly_value || 0), 0);
   const revenueConcentration = totalMrr > 0 ? (top3Mrr / totalMrr) * 100 : 0;
 
   return {
@@ -298,8 +465,330 @@ function calculateProductivityMetrics(
   };
 }
 
+function calculateProjectsMetrics(
+  projects: Array<{
+    id: string;
+    name: string;
+    status: string;
+    budget: number | null;
+    end_date: string | null;
+    created_at: string;
+    client_id: string | null;
+    clients: { company_name: string } | null;
+  }>,
+  tasks: Array<{ project_id: string | null }>,
+  startOfMonth: string
+): ProjectsContext {
+  const active = projects.filter((p) => p.status === 'active').length;
+  const onHold = projects.filter((p) => p.status === 'on_hold').length;
+  const completedThisMonth = projects.filter(
+    (p) => p.status === 'completed' && p.created_at >= startOfMonth
+  ).length;
+  const totalBudget = projects.reduce((sum, p) => sum + (p.budget || 0), 0);
+
+  // Get recent projects with task count
+  const recentProjects = projects.slice(0, 5).map((p) => {
+    const tasksCount = tasks.filter((t) => t.project_id === p.id).length;
+    return {
+      id: p.id,
+      name: p.name,
+      status: p.status,
+      client_name: p.clients?.company_name || null,
+      end_date: p.end_date,
+      tasks_count: tasksCount,
+    };
+  });
+
+  return {
+    total: projects.length,
+    active,
+    on_hold: onHold,
+    completed_this_month: completedThisMonth,
+    total_budget: totalBudget,
+    recent_projects: recentProjects,
+  };
+}
+
+function calculateTeamMetrics(
+  teamMembers: Array<{
+    id: string;
+    role: string;
+    department: string;
+    status: string;
+    hire_date: string;
+    salary: number | null;
+    users: { full_name: string; email: string } | null;
+  }>,
+  startOfMonth: string
+): TeamContext {
+  const activeMembers = teamMembers.filter((m) => m.status === 'active');
+
+  // Count by department
+  const byDepartment: Record<string, number> = {};
+  activeMembers.forEach((m) => {
+    byDepartment[m.department] = (byDepartment[m.department] || 0) + 1;
+  });
+
+  // Count by role
+  const byRole: Record<string, number> = {};
+  activeMembers.forEach((m) => {
+    byRole[m.role] = (byRole[m.role] || 0) + 1;
+  });
+
+  // Recent hires (last 3 months or newest 5)
+  const recentHires = teamMembers
+    .filter((m) => m.status === 'active')
+    .slice(0, 5)
+    .map((m) => ({
+      id: m.id,
+      name: m.users?.full_name || 'Sem nome',
+      role: m.role,
+      department: m.department,
+      hire_date: m.hire_date,
+    }));
+
+  return {
+    total_members: teamMembers.length,
+    active: activeMembers.length,
+    by_department: byDepartment,
+    by_role: byRole,
+    recent_hires: recentHires,
+  };
+}
+
+function calculateCalendarMetrics(
+  tasks: Array<{
+    id: string;
+    title: string;
+    due_date: string | null;
+    status: string;
+    priority: string;
+  }>,
+  projects: Array<{
+    id: string;
+    name: string;
+    end_date: string | null;
+    status: string;
+  }>,
+  payments: Array<{
+    id: string;
+    due_date: string | null;
+    status: string;
+    clients: { company_name: string } | null;
+  }>,
+  today: string,
+  endOfWeek: string
+): CalendarContext {
+  const upcomingDeadlines: CalendarContext['upcoming_deadlines'] = [];
+
+  // Task deadlines
+  tasks
+    .filter((t) => t.due_date && t.due_date >= today && t.due_date <= endOfWeek && t.status !== 'completed')
+    .forEach((t) => {
+      upcomingDeadlines.push({
+        id: t.id,
+        title: t.title,
+        type: 'task',
+        date: t.due_date!,
+        priority: t.priority,
+      });
+    });
+
+  // Project deadlines
+  projects
+    .filter((p) => p.end_date && p.end_date >= today && p.end_date <= endOfWeek && p.status === 'active')
+    .forEach((p) => {
+      upcomingDeadlines.push({
+        id: p.id,
+        title: `Projeto: ${p.name}`,
+        type: 'project',
+        date: p.end_date!,
+      });
+    });
+
+  // Payment deadlines
+  payments
+    .filter((p) => p.due_date && p.due_date >= today && p.due_date <= endOfWeek && p.status === 'pending')
+    .forEach((p) => {
+      upcomingDeadlines.push({
+        id: p.id,
+        title: `Pagamento: ${p.clients?.company_name || 'Cliente'}`,
+        type: 'payment',
+        date: p.due_date!,
+      });
+    });
+
+  // Sort by date
+  upcomingDeadlines.sort((a, b) => a.date.localeCompare(b.date));
+
+  const eventsToday = upcomingDeadlines.filter((e) => e.date === today).length;
+  const eventsThisWeek = upcomingDeadlines.length;
+
+  return {
+    events_today: eventsToday,
+    events_this_week: eventsThisWeek,
+    upcoming_deadlines: upcomingDeadlines.slice(0, 10),
+  };
+}
+
+function calculatePaymentsMetrics(
+  payments: Array<{
+    id: string;
+    amount: number;
+    due_date: string | null;
+    paid_date: string | null;
+    status: string;
+    client_id: string | null;
+    clients: { company_name: string } | null;
+  }>,
+  today: string,
+  startOfMonth: string
+): PaymentsContext {
+  const pending = payments.filter((p) => p.status === 'pending');
+  const overdue = payments.filter(
+    (p) => p.status === 'pending' && p.due_date && p.due_date < today
+  );
+  const paidThisMonth = payments.filter(
+    (p) => p.status === 'paid' && p.paid_date && p.paid_date >= startOfMonth
+  );
+
+  const pendingAmount = pending.reduce((sum, p) => sum + (p.amount || 0), 0);
+  const overdueAmount = overdue.reduce((sum, p) => sum + (p.amount || 0), 0);
+  const receivedThisMonth = paidThisMonth.reduce((sum, p) => sum + (p.amount || 0), 0);
+
+  // Upcoming 7 days
+  const sevenDaysLater = new Date();
+  sevenDaysLater.setDate(sevenDaysLater.getDate() + 7);
+  const sevenDaysStr = sevenDaysLater.toISOString().split('T')[0];
+
+  const upcoming7Days = payments
+    .filter(
+      (p) =>
+        p.status === 'pending' &&
+        p.due_date &&
+        p.due_date >= today &&
+        p.due_date <= sevenDaysStr
+    )
+    .slice(0, 5)
+    .map((p) => ({
+      id: p.id,
+      client_name: p.clients?.company_name || 'Cliente',
+      amount: p.amount || 0,
+      due_date: p.due_date!,
+      status: p.status,
+    }));
+
+  return {
+    pending_count: pending.length,
+    pending_amount: pendingAmount,
+    overdue_count: overdue.length,
+    overdue_amount: overdueAmount,
+    received_this_month: receivedThisMonth,
+    upcoming_7_days: upcoming7Days,
+  };
+}
+
+function calculateGoalsMetrics(
+  goalsData: {
+    id: string;
+    mrr_target: number;
+    mrr_current: number;
+    clients_target: number;
+    clients_current: number;
+    tasks_target: number;
+    tasks_current: number;
+    projects_target: number;
+    projects_current: number;
+    is_confirmed: boolean;
+  } | null,
+  goalInsights: Array<{
+    insight_type: string;
+    metric: string;
+    message: string;
+    priority: number;
+  }>,
+  now: Date
+): GoalsContext {
+  const dayOfMonth = now.getDate();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const expectedProgress = (dayOfMonth / daysInMonth) * 100;
+
+  if (!goalsData) {
+    return {
+      has_goals: false,
+      is_confirmed: false,
+      mrr: { target: 0, current: 0, progress: 0, status: 'behind' },
+      clients: { target: 0, current: 0, progress: 0, status: 'behind' },
+      tasks: { target: 0, current: 0, progress: 0, status: 'behind' },
+      projects: { target: 0, current: 0, progress: 0, status: 'behind' },
+      day_of_month: dayOfMonth,
+      days_in_month: daysInMonth,
+      expected_progress: Math.round(expectedProgress),
+      insights: [],
+    };
+  }
+
+  const getStatus = (progress: number): 'behind' | 'on_track' | 'ahead' | 'achieved' => {
+    if (progress >= 100) return 'achieved';
+    if (progress >= expectedProgress * 0.9) return 'ahead';
+    if (progress >= expectedProgress * 0.5) return 'on_track';
+    return 'behind';
+  };
+
+  const calcProgress = (current: number, target: number): number => {
+    if (target <= 0) return 0;
+    return Math.round((current / target) * 100 * 10) / 10;
+  };
+
+  const mrrProgress = calcProgress(goalsData.mrr_current, goalsData.mrr_target);
+  const clientsProgress = calcProgress(goalsData.clients_current, goalsData.clients_target);
+  const tasksProgress = calcProgress(goalsData.tasks_current, goalsData.tasks_target);
+  const projectsProgress = calcProgress(goalsData.projects_current, goalsData.projects_target);
+
+  return {
+    has_goals: true,
+    is_confirmed: goalsData.is_confirmed,
+    mrr: {
+      target: goalsData.mrr_target,
+      current: goalsData.mrr_current,
+      progress: mrrProgress,
+      status: getStatus(mrrProgress),
+    },
+    clients: {
+      target: goalsData.clients_target,
+      current: goalsData.clients_current,
+      progress: clientsProgress,
+      status: getStatus(clientsProgress),
+    },
+    tasks: {
+      target: goalsData.tasks_target,
+      current: goalsData.tasks_current,
+      progress: tasksProgress,
+      status: getStatus(tasksProgress),
+    },
+    projects: {
+      target: goalsData.projects_target,
+      current: goalsData.projects_current,
+      progress: projectsProgress,
+      status: getStatus(projectsProgress),
+    },
+    day_of_month: dayOfMonth,
+    days_in_month: daysInMonth,
+    expected_progress: Math.round(expectedProgress),
+    insights: goalInsights.map(i => ({
+      type: i.insight_type,
+      metric: i.metric,
+      message: i.message,
+      priority: i.priority,
+    })),
+  };
+}
+
 export function formatContextForPrompt(context: AggregatedContext): string {
-  const { user, tasks, clients, financial, productivity } = context;
+  const { user, tasks, clients, projects, team, calendar, payments, financial, productivity, goals } = context;
+
+  // Format goals section
+  const goalsSection = formatGoalsSection(goals);
 
   return `### Usuário
 - Nome: ${user.name || 'Não informado'}
@@ -315,6 +804,32 @@ export function formatContextForPrompt(context: AggregatedContext): string {
 - **Urgentes: ${tasks.urgent}** ${tasks.urgent > 0 ? '🔴' : ''}
 - Vencem hoje: ${tasks.due_today}
 - Vencem esta semana: ${tasks.due_this_week}
+
+### Projetos
+- Total: ${projects.total} projetos
+- Ativos: ${projects.active}
+- Em espera: ${projects.on_hold}
+- Concluídos este mês: ${projects.completed_this_month}
+- Budget total: R$ ${projects.total_budget.toLocaleString('pt-BR')}
+${projects.recent_projects.length > 0 ? `- Projetos recentes:\n${projects.recent_projects.slice(0, 3).map((p) => `  • ${p.name} (${p.status})${p.client_name ? ` - ${p.client_name}` : ''} - ${p.tasks_count} tarefas`).join('\n')}` : ''}
+
+### Equipe
+- Total de membros: ${team.total_members}
+- Membros ativos: ${team.active}
+- Por departamento: ${Object.entries(team.by_department).map(([dept, count]) => `${dept}: ${count}`).join(', ') || 'Nenhum'}
+- Por cargo: ${Object.entries(team.by_role).map(([role, count]) => `${role}: ${count}`).join(', ') || 'Nenhum'}
+${team.recent_hires.length > 0 ? `- Contratações recentes:\n${team.recent_hires.slice(0, 3).map((m) => `  • ${m.name} - ${m.role || 'Sem cargo'} (${m.department || 'Sem depto'})`).join('\n')}` : ''}
+
+### Calendário
+- Eventos hoje: ${calendar.events_today}
+- Eventos esta semana: ${calendar.events_this_week}
+${calendar.upcoming_deadlines.length > 0 ? `- Próximos prazos:\n${calendar.upcoming_deadlines.slice(0, 5).map((d) => `  • [${d.type.toUpperCase()}] ${d.title} - ${new Date(d.date).toLocaleDateString('pt-BR')}${d.priority ? ` (${d.priority})` : ''}`).join('\n')}` : '- Nenhum prazo próximo'}
+
+### Pagamentos
+- Pendentes: ${payments.pending_count} (R$ ${payments.pending_amount.toLocaleString('pt-BR')})
+- **Atrasados: ${payments.overdue_count} (R$ ${payments.overdue_amount.toLocaleString('pt-BR')})** ${payments.overdue_count > 0 ? '⚠️' : ''}
+- Recebido este mês: R$ ${payments.received_this_month.toLocaleString('pt-BR')}
+${payments.upcoming_7_days.length > 0 ? `- Próximos 7 dias:\n${payments.upcoming_7_days.map((p) => `  • ${p.client_name}: R$ ${p.amount.toLocaleString('pt-BR')} - vence ${new Date(p.due_date).toLocaleDateString('pt-BR')}`).join('\n')}` : ''}
 
 ### Clientes
 - Total de clientes: ${clients.total}
@@ -335,5 +850,53 @@ ${clients.top_clients.map((c, i) => `  ${i + 1}. ${c.name}: R$ ${c.mrr.toLocaleS
 - Taxa de conclusão: ${productivity.completion_rate}%
 
 ### Tarefas Recentes
-${tasks.recent_tasks.slice(0, 5).map((t) => `- [${t.priority.toUpperCase()}] ${t.title} (${t.status})${t.client_name ? ` - ${t.client_name}` : ''}`).join('\n')}`;
+${tasks.recent_tasks.slice(0, 5).map((t) => `- [${t.priority.toUpperCase()}] ${t.title} (${t.status})${t.client_name ? ` - ${t.client_name}` : ''}`).join('\n')}
+
+${goalsSection}`;
+}
+
+function formatGoalsSection(goals: GoalsContext): string {
+  if (!goals.has_goals) {
+    return `### Metas do Mês
+- **Sem metas definidas para este mês**
+- Dia do mês: ${goals.day_of_month}/${goals.days_in_month}
+- Sugestão: Pergunte ao usuário se deseja definir metas mensais`;
+  }
+
+  const statusEmoji = (status: string): string => {
+    switch (status) {
+      case 'achieved': return '✅';
+      case 'ahead': return '🟢';
+      case 'on_track': return '🟡';
+      case 'behind': return '🔴';
+      default: return '⚪';
+    }
+  };
+
+  const statusText = (status: string): string => {
+    switch (status) {
+      case 'achieved': return 'Meta batida!';
+      case 'ahead': return 'Adiantado';
+      case 'on_track': return 'No ritmo';
+      case 'behind': return 'Atrasado';
+      default: return 'Sem dados';
+    }
+  };
+
+  let section = `### Metas do Mês ${goals.is_confirmed ? '' : '(NÃO CONFIRMADAS)'}
+- Dia do mês: ${goals.day_of_month}/${goals.days_in_month} (${goals.expected_progress}% esperado)
+
+**MRR:** ${statusEmoji(goals.mrr.status)} R$ ${goals.mrr.current.toLocaleString('pt-BR')} / R$ ${goals.mrr.target.toLocaleString('pt-BR')} (${goals.mrr.progress}%) - ${statusText(goals.mrr.status)}
+**Clientes:** ${statusEmoji(goals.clients.status)} ${goals.clients.current} / ${goals.clients.target} (${goals.clients.progress}%) - ${statusText(goals.clients.status)}
+**Tarefas:** ${statusEmoji(goals.tasks.status)} ${goals.tasks.current} / ${goals.tasks.target} (${goals.tasks.progress}%) - ${statusText(goals.tasks.status)}
+**Projetos:** ${statusEmoji(goals.projects.status)} ${goals.projects.current} / ${goals.projects.target} (${goals.projects.progress}%) - ${statusText(goals.projects.status)}`;
+
+  if (goals.insights.length > 0) {
+    section += `\n\n**Insights de Metas:**`;
+    goals.insights.slice(0, 3).forEach(insight => {
+      section += `\n- [${insight.type.toUpperCase()}] ${insight.message}`;
+    });
+  }
+
+  return section;
 }

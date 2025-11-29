@@ -15,6 +15,7 @@ import {
   Settings,
   User,
   Sparkles,
+  Target,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -37,6 +38,7 @@ const primaryNavItems = [
 
 // Secondary nav items shown in "More" sheet
 const secondaryNavItems = [
+  { path: '/prospects', label: 'Pipeline', icon: Target },
   { path: '/projects', label: 'Projetos', icon: FolderKanban },
   { path: '/tags', label: 'Tags', icon: Tag },
   { path: '/team', label: 'Equipe', icon: Users },

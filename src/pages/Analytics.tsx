@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   DollarSign,
   TrendingUp,
@@ -9,12 +9,15 @@ import {
   AlertCircle,
   Banknote,
   Percent,
+  Briefcase,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
 import { useAuth, useTeam, useTasks, useClients } from '../stores/appStore';
 import type { AnalyticsPeriod, DateRange, KPICardData } from '../types';
+import type { PipelineMetrics, Prospect, PipelineStage } from '../types/prospects';
 import { calculateOverallMetrics, periodToDateRange } from '../utils/analytics';
+import { ProspectService } from '../services/prospectService';
 import KPICard from '../components/KPICard';
 import RevenueChart from '../components/RevenueChart';
 import TasksDistributionChart from '../components/TasksDistributionChart';
@@ -23,6 +26,9 @@ import ClientsGrowthChart from '../components/ClientsGrowthChart';
 import ProductivityRanking from '../components/ProductivityRanking';
 import PeriodFilter from '../components/PeriodFilter';
 import ExportButton from '../components/ExportButton';
+import ProspectsFunnelChart from '../components/ProspectsFunnelChart';
+import ProspectsDistributionChart from '../components/ProspectsDistributionChart';
+import ProspectsTimelineChart from '../components/ProspectsTimelineChart';
 
 const Analytics: React.FC = () => {
   const { user } = useAuth();
@@ -31,6 +37,32 @@ const Analytics: React.FC = () => {
   const { clients, payments, getMRRMetrics } = useClients();
   const [period, setPeriod] = useState<AnalyticsPeriod>('this_month');
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>();
+  const [prospectMetrics, setProspectMetrics] = useState<PipelineMetrics | null>(null);
+  const [prospects, setProspects] = useState<Prospect[]>([]);
+  const [stages, setStages] = useState<PipelineStage[]>([]);
+
+  // Carregar dados de prospects
+  useEffect(() => {
+    if (user) {
+      loadProspectData();
+    }
+  }, [user]);
+
+  const loadProspectData = async () => {
+    if (!user) return;
+    try {
+      const [metricsData, prospectsData, stagesData] = await Promise.all([
+        ProspectService.getPipelineMetrics(user.id),
+        ProspectService.getProspects(user.id, { statuses: ['open', 'won', 'lost'] }),
+        ProspectService.getStagesWithMetrics(user.id)
+      ]);
+      setProspectMetrics(metricsData);
+      setProspects(prospectsData);
+      setStages(stagesData);
+    } catch (error) {
+      console.error('Erro ao carregar dados de prospects:', error);
+    }
+  };
 
   // Dados vêm do Supabase via store
 
@@ -285,6 +317,31 @@ const Analytics: React.FC = () => {
               title="Produtividade por Departamento"
             />
           </div>
+
+          {/* Secao Pipeline de Vendas */}
+          {prospectMetrics && (
+            <>
+              <div className="flex items-center gap-2 mt-6 mb-4">
+                <Briefcase className="h-5 w-5 text-primary" />
+                <h2 className="text-lg font-semibold">Pipeline de Vendas</h2>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <ProspectsFunnelChart
+                  data={prospectMetrics.byStage}
+                  title="Funil de Vendas"
+                />
+                <ProspectsDistributionChart
+                  byStage={prospectMetrics.byStage}
+                  byPriority={prospectMetrics.byPriority}
+                  title="Distribuicao de Prospects"
+                />
+                <ProspectsTimelineChart
+                  prospects={prospects}
+                  title="Evolucao do Pipeline"
+                />
+              </div>
+            </>
+          )}
         </TabsContent>
 
         {/* Aba Financeiro */}

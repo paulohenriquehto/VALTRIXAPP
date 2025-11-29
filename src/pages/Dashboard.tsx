@@ -1,6 +1,7 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { useDashboardStats, useTasks, useClients, useAuth } from '../stores/appStore';
 import { TaskService, ClientService } from '../services';
+import { ProspectService } from '../services/prospectService';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -13,17 +14,22 @@ import {
   Target,
   Percent,
   CalendarClock,
-  BarChart3
+  BarChart3,
+  Briefcase,
+  Scale
 } from 'lucide-react';
 import { PageHeader, PageContainer } from '@/components/ui/page-header';
 import { KPIGrid, ResponsiveGrid } from '@/components/ui/responsive-grid';
 import { AIDashboardWidget } from '@/components/ai';
+import { GoalsListCard, GoalsConfigModal } from '@/components/goals';
+import type { PipelineMetrics } from '../types/prospects';
 
 const Dashboard: React.FC = () => {
   const stats = useDashboardStats();
   const { tasks, setTasks } = useTasks();
   const { clients, setClients, getMRRMetrics } = useClients();
   const { user } = useAuth();
+  const [prospectMetrics, setProspectMetrics] = useState<PipelineMetrics | null>(null);
 
   // Carregar dados iniciais
   useEffect(() => {
@@ -35,12 +41,14 @@ const Dashboard: React.FC = () => {
   const loadData = async () => {
     if (!user) return;
     try {
-      const [tasksData, clientsData] = await Promise.all([
+      const [tasksData, clientsData, prospectsMetricsData] = await Promise.all([
         TaskService.getAll(user.id),
-        ClientService.getAll(user.id)
+        ClientService.getAll(user.id),
+        ProspectService.getPipelineMetrics(user.id)
       ]);
       setTasks(tasksData);
       setClients(clientsData);
+      setProspectMetrics(prospectsMetricsData);
     } catch (error: any) {
       console.error('Erro ao carregar dados do dashboard:', error);
     }
@@ -57,12 +65,33 @@ const Dashboard: React.FC = () => {
     // Tarefas dos últimos 30 dias
     const recentTasks = tasks.filter(t => new Date(t.createdAt) >= thirtyDaysAgo);
 
-    // Dinheiro na mesa (tarefas vencidas não completadas)
-    const overdueTasks = tasks.filter(t => {
+    // Dinheiro na mesa (tarefas vencidas não completadas - baseado no valor real do projeto)
+    const overdueTasksWithValue = tasks.filter(t => {
       if (!t.dueDate || t.status === 'completed') return false;
       return new Date(t.dueDate) < now;
-    }).length;
-    const lostRevenue = overdueTasks * 75; // Estimativa de perda por atraso
+    });
+
+    // Calcular valor proporcional de cada tarefa vencida baseado no projeto
+    const lostRevenue = overdueTasksWithValue.reduce((total, task) => {
+      // Se a tarefa tem projeto com orçamento definido
+      if (task.project?.budget && task.project.budget > 0) {
+        // Contar total de tarefas do mesmo projeto
+        const projectTasks = tasks.filter(t => t.project?.id === task.project?.id);
+        const totalProjectTasks = projectTasks.length || 1;
+        // Valor proporcional = orçamento do projeto / número de tarefas
+        const taskValue = task.project.budget / totalProjectTasks;
+        return total + taskValue;
+      }
+      // Se a tarefa tem projeto com cliente (usar monthlyValue do cliente)
+      if (task.project?.client?.monthlyValue && task.project.client.monthlyValue > 0) {
+        const projectTasks = tasks.filter(t => t.project?.id === task.project?.id);
+        const totalProjectTasks = projectTasks.length || 1;
+        const taskValue = task.project.client.monthlyValue / totalProjectTasks;
+        return total + taskValue;
+      }
+      // Fallback: R$ 75 por tarefa sem projeto vinculado
+      return total + 75;
+    }, 0);
 
     // Taxa de crescimento (novos vs mês anterior)
     const growthRate = financialMetrics.activeClients >
@@ -198,6 +227,12 @@ const Dashboard: React.FC = () => {
 
       {/* AI Manager Widget */}
       <AIDashboardWidget />
+
+      {/* Goals List Card - Sistema de metas com periodos customizaveis */}
+      <GoalsListCard />
+
+      {/* Goals Config Modal (legacy - para edicao de metas existentes) */}
+      <GoalsConfigModal />
 
       {/* Métricas Principais - Linha 1 */}
       <KPIGrid>
@@ -358,6 +393,63 @@ const Dashboard: React.FC = () => {
           format="currency"
         />
       </KPIGrid>
+
+      {/* Pipeline de Vendas - Linha 4 */}
+      {prospectMetrics && (
+        <KPIGrid>
+          <MetricCard
+            title="Total em Pipeline"
+            value={prospectMetrics.totalValue}
+            description={`${prospectMetrics.totalProspects} prospects ativos`}
+            trend={
+              prospectMetrics.totalProspects > 10 ? 'up' :
+                prospectMetrics.totalProspects > 5 ? 'stable' : 'down'
+            }
+            trendValue={prospectMetrics.totalProspects > 0 ? (prospectMetrics.totalProspects * 5) : 0}
+            icon={Briefcase}
+            format="currency"
+          />
+
+          <MetricCard
+            title="Valor Ponderado"
+            value={prospectMetrics.weightedValue}
+            description="ajustado por probabilidade"
+            trend={
+              prospectMetrics.weightedValue > prospectMetrics.totalValue * 0.5 ? 'up' :
+                prospectMetrics.weightedValue > prospectMetrics.totalValue * 0.3 ? 'stable' : 'down'
+            }
+            trendValue={prospectMetrics.totalValue > 0 ? (prospectMetrics.weightedValue / prospectMetrics.totalValue) * 100 : 0}
+            icon={Scale}
+            format="currency"
+          />
+
+          <MetricCard
+            title="Taxa de Conversao"
+            value={prospectMetrics.conversionRate}
+            description="prospects ganhos vs perdidos"
+            trend={
+              prospectMetrics.conversionRate >= 50 ? 'up' :
+                prospectMetrics.conversionRate >= 30 ? 'stable' : 'down'
+            }
+            trendValue={prospectMetrics.conversionRate}
+            icon={Target}
+            format="percentage"
+          />
+
+          <MetricCard
+            title="Ticket Medio"
+            value={prospectMetrics.avgDealSize}
+            description="valor medio por prospect"
+            trend={
+              prospectMetrics.avgDealSize > 10000 ? 'up' :
+                prospectMetrics.avgDealSize > 5000 ? 'stable' : 'down'
+            }
+            trendValue={prospectMetrics.avgDealSize > 0 ? 10 : 0}
+            icon={DollarSign}
+            format="currency"
+          />
+        </KPIGrid>
+      )}
 
       {/* Insights e Alertas */}
       <Card className="border-l-4 border-l-primary">

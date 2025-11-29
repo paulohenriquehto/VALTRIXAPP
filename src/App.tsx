@@ -23,6 +23,7 @@ import Settings from './pages/Settings';
 import Pricing from './pages/Pricing';
 import Pomodoro from './pages/Pomodoro';
 import Templates from './pages/Templates';
+import Prospects from './pages/Prospects';
 import './index.css';
 
 function App() {
@@ -82,9 +83,10 @@ function App() {
             path="/login"
             element={!isAuthenticated ? <Login /> : <Navigate to="/dashboard" replace />}
           />
+          {/* Cadastro desativado temporariamente */}
           <Route
             path="/register"
-            element={!isAuthenticated ? <Register /> : <Navigate to="/dashboard" replace />}
+            element={<Navigate to="/login" replace />}
           />
 
           {/* Rotas protegidas */}
@@ -98,6 +100,7 @@ function App() {
             <Route path="tasks/:id" element={<TaskDetail />} />
             <Route path="calendar" element={<Calendar />} />
             <Route path="clients" element={<Clients />} />
+            <Route path="prospects" element={<Prospects />} />
             <Route path="projects" element={<Projects />} />
             <Route path="projects/:id" element={<ProjectDetail />} />
             <Route path="tags" element={<Tags />} />

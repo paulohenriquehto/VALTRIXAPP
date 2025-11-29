@@ -10,12 +10,18 @@ import {
   AlertTriangle,
   TrendingUp,
   Clock,
+  Target,
+  CheckCircle2,
+  Zap,
 } from 'lucide-react';
 import { useAIChat } from '@/stores/aiChatStore';
+import { useGoalsStore } from '@/stores/goalsStore';
+import { useAuth } from '@/stores/appStore';
 import { cn } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
 
 export function AIDashboardWidget() {
+  const { user } = useAuth();
   const {
     dailyBriefing,
     insights,
@@ -25,11 +31,48 @@ export function AIDashboardWidget() {
     toggleOpen,
     markInsightAsRead,
   } = useAIChat();
+  const { goalInsights, loadGoalInsights } = useGoalsStore();
 
   useEffect(() => {
     loadDailyBriefing();
     loadInsights();
-  }, [loadDailyBriefing, loadInsights]);
+    if (user?.id) {
+      loadGoalInsights(user.id);
+    }
+  }, [loadDailyBriefing, loadInsights, loadGoalInsights, user?.id]);
+
+  // Icone por tipo de insight de metas
+  const getGoalInsightIcon = (type: string) => {
+    switch (type) {
+      case 'success':
+        return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
+      case 'warning':
+      case 'urgency':
+        return <AlertTriangle className="h-4 w-4 text-orange-500" />;
+      case 'motivation':
+        return <Zap className="h-4 w-4 text-yellow-500" />;
+      case 'almost':
+        return <Target className="h-4 w-4 text-blue-500" />;
+      default:
+        return <TrendingUp className="h-4 w-4 text-muted-foreground" />;
+    }
+  };
+
+  const getGoalInsightColor = (type: string) => {
+    switch (type) {
+      case 'success':
+        return 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800';
+      case 'warning':
+      case 'urgency':
+        return 'bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800';
+      case 'motivation':
+        return 'bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-800';
+      case 'almost':
+        return 'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800';
+      default:
+        return 'bg-muted/50 border-muted';
+    }
+  };
 
   // Prioridade do insight
   const getPriorityBadge = (priority: string) => {
@@ -136,6 +179,30 @@ export function AIDashboardWidget() {
           </div>
         )}
 
+        {/* Goal Insights - Alta Prioridade */}
+        {goalInsights.length > 0 && (
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium flex items-center gap-1.5">
+              <Target className="h-3.5 w-3.5 text-muted-foreground" />
+              Insights de Metas
+            </h4>
+            <div className="space-y-2">
+              {goalInsights.slice(0, 2).map((insight, index) => (
+                <div
+                  key={`goal-insight-${index}`}
+                  className={cn(
+                    'p-2.5 rounded-lg border flex items-start gap-2',
+                    getGoalInsightColor(insight.type)
+                  )}
+                >
+                  {getGoalInsightIcon(insight.type)}
+                  <p className="text-sm flex-1">{insight.message}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Insights recentes */}
         {insights.length > 0 && (
           <div className="space-y-2">
@@ -184,7 +251,7 @@ export function AIDashboardWidget() {
         )}
 
         {/* Estado vazio */}
-        {!dailyBriefing && insights.length === 0 && (
+        {!dailyBriefing && insights.length === 0 && goalInsights.length === 0 && (
           <div className="text-center py-4 text-sm text-muted-foreground">
             <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-50" />
             <p>Nenhum insight disponível ainda.</p>
