@@ -714,13 +714,14 @@ export const useDashboardStats = () => {
 // Hook para clientes
 export const useClients = () => {
   const { clients, payments, selectedClient } = useAppStore();
-  const { setClients, addClient, updateClient, deleteClient, setSelectedClient, addPayment, updatePaymentStatus, getMRRMetrics } = useAppStore();
+  const { setClients, setPayments, addClient, updateClient, deleteClient, setSelectedClient, addPayment, updatePaymentStatus, getMRRMetrics } = useAppStore();
 
   return {
     clients,
     payments,
     selectedClient,
     setClients,
+    setPayments,
     addClient,
     updateClient,
     deleteClient,
