@@ -35,7 +35,7 @@ interface PaymentManagerProps {
 }
 
 const PaymentManager: React.FC<PaymentManagerProps> = ({ client, onUpdate }) => {
-  const { updateClient } = useClients();
+  const { updateClient, addPayment: addPaymentToStore, payments: globalPayments, setPayments: setGlobalPayments } = useClients();
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -118,6 +118,10 @@ const PaymentManager: React.FC<PaymentManagerProps> = ({ client, onUpdate }) => 
       // Recarregar pagamentos e verificar se completou 100%
       const updatedPayments = await ClientService.getPayments(client.id);
       setPayments(updatedPayments);
+
+      // Atualizar também o store global para o dashboard
+      const allPayments = await ClientService.getAllPayments();
+      setGlobalPayments(allPayments);
 
       // Calcular novo progresso
       const newProgress = calculatePaymentProgress(client.monthlyValue, updatedPayments);

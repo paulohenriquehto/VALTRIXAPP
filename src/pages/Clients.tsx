@@ -27,7 +27,7 @@ import ClientDialog from '../components/ClientDialog';
 import type { Client } from '../types';
 
 const Clients: React.FC = () => {
-  const { clients, setClients, getMRRMetrics } = useClients();
+  const { clients, setClients, setPayments, getMRRMetrics } = useClients();
   const { user } = useAuth();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
@@ -38,26 +38,34 @@ const Clients: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [filterType, setFilterType] = useState<'all' | 'recurring' | 'freelance'>('all');
 
-  // Carregar clientes do Supabase
+  // Carregar clientes e pagamentos do Supabase
   useEffect(() => {
     if (user) {
-      loadClients();
+      loadClientsAndPayments();
     }
   }, [user]);
 
-  const loadClients = async () => {
+  const loadClientsAndPayments = async () => {
     if (!user) return;
     try {
       setIsLoading(true);
-      const data = await ClientService.getAll(user.id);
-      setClients(data);
+      // Carregar clientes e pagamentos em paralelo
+      const [clientsData, paymentsData] = await Promise.all([
+        ClientService.getAll(user.id),
+        ClientService.getAllPayments(),
+      ]);
+      setClients(clientsData);
+      setPayments(paymentsData);
     } catch (error: any) {
-      console.error('Erro ao carregar clientes:', error);
-      toast.error(error.message || 'Erro ao carregar clientes');
+      console.error('Erro ao carregar dados:', error);
+      toast.error(error.message || 'Erro ao carregar dados');
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Alias para manter compatibilidade
+  const loadClients = loadClientsAndPayments;
 
   const metrics = useMemo(() => getMRRMetrics(), [clients, getMRRMetrics]);
 

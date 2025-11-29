@@ -141,6 +141,19 @@ export class ClientService {
     }
 
     /**
+     * Buscar TODOS os pagamentos (para dashboard)
+     */
+    static async getAllPayments(): Promise<Payment[]> {
+        const { data, error } = await supabase
+            .from('payments')
+            .select('*')
+            .order('due_date', { ascending: false });
+
+        if (error) throw error;
+        return (data || []).map(transformPaymentFromDB);
+    }
+
+    /**
      * Criar pagamento
      */
     static async createPayment(payment: Partial<Payment>): Promise<Payment> {
