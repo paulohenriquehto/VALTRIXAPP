@@ -45,6 +45,8 @@ const ProjectDialog: React.FC<ProjectDialogProps> = ({
     startDate: '',
     endDate: '',
     budget: '',
+    deadline: '',
+    notifyDaysBefore: '3',
   });
 
   useEffect(() => {
@@ -61,6 +63,10 @@ const ProjectDialog: React.FC<ProjectDialogProps> = ({
           ? new Date(project.endDate).toISOString().split('T')[0]
           : '',
         budget: project.budget.toString(),
+        deadline: project.deadline
+          ? new Date(project.deadline).toISOString().split('T')[0]
+          : '',
+        notifyDaysBefore: (project.notifyDaysBefore ?? 3).toString(),
       });
     } else if (mode === 'create') {
       setFormData({
@@ -71,6 +77,8 @@ const ProjectDialog: React.FC<ProjectDialogProps> = ({
         startDate: '',
         endDate: '',
         budget: '0',
+        deadline: '',
+        notifyDaysBefore: '3',
       });
     }
   }, [mode, project, open]);
@@ -93,6 +101,8 @@ const ProjectDialog: React.FC<ProjectDialogProps> = ({
       startDate: formData.startDate || undefined,
       endDate: formData.endDate || undefined,
       budget: parseFloat(formData.budget) || 0,
+      deadline: formData.deadline || undefined,
+      notifyDaysBefore: parseInt(formData.notifyDaysBefore) || 3,
     };
 
     if (mode === 'edit' && project) {
@@ -215,6 +225,42 @@ const ProjectDialog: React.FC<ProjectDialogProps> = ({
               onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
               placeholder="0.00"
             />
+          </div>
+
+          {/* Campos de Prazo de Entrega */}
+          <div className="border-t pt-4 mt-4">
+            <h4 className="text-sm font-medium mb-3 text-muted-foreground">Prazo de Entrega</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="deadline">Data Limite</Label>
+                <Input
+                  id="deadline"
+                  type="date"
+                  value={formData.deadline}
+                  onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="notifyDaysBefore">Notificar (dias antes)</Label>
+                <Select
+                  value={formData.notifyDaysBefore}
+                  onValueChange={(value) => setFormData({ ...formData, notifyDaysBefore: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 dia antes</SelectItem>
+                    <SelectItem value="2">2 dias antes</SelectItem>
+                    <SelectItem value="3">3 dias antes</SelectItem>
+                    <SelectItem value="5">5 dias antes</SelectItem>
+                    <SelectItem value="7">7 dias antes</SelectItem>
+                    <SelectItem value="14">14 dias antes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </div>
 
           <DialogFooter>

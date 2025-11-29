@@ -164,7 +164,7 @@ export interface DashboardStats {
 // Tipos de notificação
 export interface Notification {
   id: string;
-  type: 'info' | 'success' | 'warning' | 'error' | 'task_due' | 'task_overdue' | 'task_assigned' | 'task_completed' | 'ai_insight';
+  type: 'info' | 'success' | 'warning' | 'error' | 'task_due' | 'task_overdue' | 'task_assigned' | 'task_completed' | 'ai_insight' | 'project_deadline' | 'project_overdue';
   title: string;
   message: string;
   read: boolean;
@@ -873,6 +873,11 @@ export interface Project {
   createdBy: User;
   createdAt: string;
   updatedAt: string;
+
+  // Campos de deadline/prazo de entrega
+  deadline?: string;
+  notifyDaysBefore?: number;
+  deadlineNotified?: boolean;
 
   // Computed fields (carregados sob demanda)
   notes?: ProjectNote[];

@@ -70,6 +70,10 @@ export class ProjectService {
       end_date: project.endDate || null,
       budget: project.budget || 0,
       created_by: userId,
+      // Campos de deadline
+      deadline: project.deadline || null,
+      notify_days_before: project.notifyDaysBefore ?? 3,
+      deadline_notified: false,
     };
 
     const { data, error } = await supabase
@@ -95,6 +99,10 @@ export class ProjectService {
       ...(updates.startDate !== undefined && { start_date: updates.startDate }),
       ...(updates.endDate !== undefined && { end_date: updates.endDate }),
       ...(updates.budget !== undefined && { budget: updates.budget }),
+      // Campos de deadline
+      ...(updates.deadline !== undefined && { deadline: updates.deadline }),
+      ...(updates.notifyDaysBefore !== undefined && { notify_days_before: updates.notifyDaysBefore }),
+      ...(updates.deadlineNotified !== undefined && { deadline_notified: updates.deadlineNotified }),
       updated_at: new Date().toISOString(),
     };
 
@@ -294,6 +302,10 @@ function transformProjectFromDB(dbProject: any): Project {
     startDate: dbProject.start_date || undefined,
     endDate: dbProject.end_date || undefined,
     budget: dbProject.budget || 0,
+    // Campos de deadline
+    deadline: dbProject.deadline || undefined,
+    notifyDaysBefore: dbProject.notify_days_before ?? 3,
+    deadlineNotified: dbProject.deadline_notified || false,
     createdBy: transformUserFromDB(dbProject.created_by),
     createdAt: dbProject.created_at,
     updatedAt: dbProject.updated_at || dbProject.created_at,

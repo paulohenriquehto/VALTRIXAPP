@@ -144,8 +144,12 @@ const Clients: React.FC = () => {
       inactive: { label: 'Inativo', className: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' },
       trial: { label: 'Trial', className: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' },
       churned: { label: 'Cancelado', className: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' },
+      completed: { label: 'Concluído', className: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' },
     };
     const variant = variants[status];
+    if (!variant) {
+      return <Badge className="bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">{status}</Badge>;
+    }
     return <Badge className={variant.className}>{variant.label}</Badge>;
   };
 

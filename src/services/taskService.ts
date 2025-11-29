@@ -16,6 +16,7 @@ export class TaskService {
             .select(`
         *,
         category:categories(*),
+        project:projects(*, client:clients(*)),
         assignee:users!tasks_assignee_id_fkey(*),
         created_by:users!tasks_created_by_fkey(*),
         tags:task_tags(tag:tags(*))
@@ -38,6 +39,7 @@ export class TaskService {
             .select(`
         *,
         category:categories(*),
+        project:projects(*, client:clients(*)),
         assignee:users!tasks_assignee_id_fkey(*),
         created_by:users!tasks_created_by_fkey(*),
         tags:task_tags(tag:tags(*)),
@@ -64,6 +66,7 @@ export class TaskService {
             due_date: task.dueDate || null,
             estimated_time: task.estimatedTime || null,
             category_id: task.category?.id || null,
+            project_id: task.project?.id || null,
             assignee_id: task.assignee?.id || null,
             created_by: userId,
         };
@@ -74,6 +77,7 @@ export class TaskService {
             .select(`
         *,
         category:categories(*),
+        project:projects(*, client:clients(*)),
         assignee:users!tasks_assignee_id_fkey(*),
         created_by:users!tasks_created_by_fkey(*)
       `)
@@ -110,6 +114,7 @@ export class TaskService {
             ...(updates.estimatedTime !== undefined && { estimated_time: updates.estimatedTime }),
             ...(updates.actualTime !== undefined && { actual_time: updates.actualTime }),
             ...(updates.category && { category_id: updates.category.id }),
+            ...(updates.project !== undefined && { project_id: updates.project?.id || null }),
             ...(updates.assignee !== undefined && { assignee_id: updates.assignee?.id || null }),
             updated_at: new Date().toISOString(),
         };
@@ -121,6 +126,7 @@ export class TaskService {
             .select(`
         *,
         category:categories(*),
+        project:projects(*, client:clients(*)),
         assignee:users!tasks_assignee_id_fkey(*),
         created_by:users!tasks_created_by_fkey(*)
       `)
@@ -168,6 +174,7 @@ export class TaskService {
         status?: string[];
         priority?: string[];
         categoryId?: string;
+        projectId?: string;
         assigneeId?: string;
     }): Promise<Task[]> {
         let query = supabase
@@ -175,6 +182,7 @@ export class TaskService {
             .select(`
         *,
         category:categories(*),
+        project:projects(*, client:clients(*)),
         assignee:users!tasks_assignee_id_fkey(*),
         created_by:users!tasks_created_by_fkey(*),
         tags:task_tags(tag:tags(*))
@@ -191,6 +199,14 @@ export class TaskService {
 
         if (filters.categoryId) {
             query = query.eq('category_id', filters.categoryId);
+        }
+
+        if (filters.projectId) {
+            if (filters.projectId === 'none') {
+                query = query.is('project_id', null);
+            } else {
+                query = query.eq('project_id', filters.projectId);
+            }
         }
 
         if (filters.assigneeId) {
@@ -227,6 +243,36 @@ function transformTaskFromDB(dbTask: any): Task {
             isSystem: dbTask.category.is_system || false,
             createdAt: dbTask.category.created_at,
         } : undefined,
+        project: dbTask.project ? {
+            id: dbTask.project.id,
+            name: dbTask.project.name,
+            description: dbTask.project.description || undefined,
+            status: dbTask.project.status,
+            startDate: dbTask.project.start_date || undefined,
+            endDate: dbTask.project.end_date || undefined,
+            budget: dbTask.project.budget || 0,
+            deadline: dbTask.project.deadline || undefined,
+            client: dbTask.project.client ? {
+                id: dbTask.project.client.id,
+                companyName: dbTask.project.client.company_name,
+                segment: dbTask.project.client.segment,
+                contactPerson: dbTask.project.client.contact_person,
+                email: dbTask.project.client.email,
+                phone: dbTask.project.client.phone || undefined,
+                logoUrl: dbTask.project.client.logo_url || undefined,
+                clientType: dbTask.project.client.client_type,
+                monthlyValue: dbTask.project.client.monthly_value || 0,
+                contractStartDate: dbTask.project.client.contract_start_date,
+                paymentDueDay: dbTask.project.client.payment_due_day || 1,
+                paymentStatus: dbTask.project.client.payment_status,
+                paymentMethod: dbTask.project.client.payment_method,
+                status: dbTask.project.client.status,
+                createdAt: dbTask.project.client.created_at,
+                updatedAt: dbTask.project.client.updated_at,
+            } : undefined,
+            createdAt: dbTask.project.created_at,
+            updatedAt: dbTask.project.updated_at,
+        } as any : undefined,
         tags: dbTask.tags?.map((tt: any) => ({
             id: tt.tag.id,
             name: tt.tag.name,

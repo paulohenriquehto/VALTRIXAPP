@@ -17,6 +17,7 @@ interface NotificationStore {
 
   // Actions
   fetchNotifications: (userId: string) => Promise<void>;
+  checkProjectDeadlines: (userId: string) => Promise<number>;
   markAsRead: (notificationId: string) => Promise<void>;
   markAllAsRead: (userId: string) => Promise<void>;
   deleteNotification: (notificationId: string) => Promise<void>;
@@ -60,12 +61,33 @@ export const useNotificationStore = create<NotificationStore>()(
       fetchNotifications: async (userId: string) => {
         set({ isLoading: true, error: null });
         try {
+          // Primeiro verifica prazos de projetos (pode criar novas notificações)
+          await notificationService.checkProjectDeadlines(userId);
+
+          // Depois busca todas as notificações
           const notifications = await notificationService.getNotifications(userId);
           const unreadCount = notifications.filter((n) => !n.read).length;
           set({ notifications, unreadCount, isLoading: false });
         } catch (error) {
           console.error('Erro ao buscar notificações:', error);
           set({ error: 'Falha ao carregar notificações', isLoading: false });
+        }
+      },
+
+      // Verificar prazos de projetos e criar notificações
+      checkProjectDeadlines: async (userId: string) => {
+        try {
+          const count = await notificationService.checkProjectDeadlines(userId);
+          if (count > 0) {
+            // Recarrega notificações se novas foram criadas
+            const notifications = await notificationService.getNotifications(userId);
+            const unreadCount = notifications.filter((n) => !n.read).length;
+            set({ notifications, unreadCount });
+          }
+          return count;
+        } catch (error) {
+          console.error('Erro ao verificar prazos de projetos:', error);
+          return 0;
         }
       },
 
@@ -250,6 +272,7 @@ export const useNotifications = () => {
     error: store.error,
     permissionStatus: store.permissionStatus,
     fetchNotifications: store.fetchNotifications,
+    checkProjectDeadlines: store.checkProjectDeadlines,
     markAsRead: store.markAsRead,
     markAllAsRead: store.markAllAsRead,
     deleteNotification: store.deleteNotification,

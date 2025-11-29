@@ -20,7 +20,7 @@ export interface PushSubscriptionData {
 export interface DbNotification {
   id: string;
   user_id: string;
-  type: 'info' | 'success' | 'warning' | 'error' | 'task_due' | 'task_overdue' | 'task_assigned' | 'task_completed';
+  type: 'info' | 'success' | 'warning' | 'error' | 'task_due' | 'task_overdue' | 'task_assigned' | 'task_completed' | 'project_deadline' | 'project_overdue';
   title: string;
   message: string;
   read: boolean;
@@ -166,6 +166,177 @@ class NotificationService {
     } catch (error) {
       console.error('Failed to clear all notifications:', error);
       throw error;
+    }
+  }
+
+  // ==================== Project Deadline Methods ====================
+
+  /**
+   * Cria uma notificação de prazo de projeto
+   */
+  async createProjectDeadlineNotification(
+    userId: string,
+    projectId: string,
+    projectName: string,
+    daysUntilDeadline: number,
+    deadline: string
+  ): Promise<void> {
+    try {
+      const isOverdue = daysUntilDeadline < 0;
+      const type = isOverdue ? 'project_overdue' : 'project_deadline';
+
+      let title: string;
+      let message: string;
+
+      if (isOverdue) {
+        const daysOverdue = Math.abs(daysUntilDeadline);
+        title = `Projeto Atrasado: ${projectName}`;
+        message = daysOverdue === 1
+          ? `O projeto está atrasado há 1 dia.`
+          : `O projeto está atrasado há ${daysOverdue} dias.`;
+      } else if (daysUntilDeadline === 0) {
+        title = `Prazo Hoje: ${projectName}`;
+        message = `O prazo de entrega do projeto vence hoje!`;
+      } else {
+        title = `Prazo Próximo: ${projectName}`;
+        message = daysUntilDeadline === 1
+          ? `O projeto vence amanhã.`
+          : `O projeto vence em ${daysUntilDeadline} dias.`;
+      }
+
+      const { error } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: userId,
+          type,
+          title,
+          message,
+          read: false,
+          metadata: {
+            daysUntilDeadline,
+            deadline,
+          },
+          related_project_id: projectId,
+        });
+
+      if (error) throw error;
+
+      // Mostra notificação local se permitido
+      if (this.getPermissionStatus() === 'granted') {
+        await this.showNotification(title, {
+          body: message,
+          tag: `project-deadline-${projectId}`,
+          icon: '/pwa-192x192.png',
+        });
+      }
+    } catch (error) {
+      console.error('Failed to create project deadline notification:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Verifica prazos de todos os projetos e cria notificações quando necessário
+   * Deve ser chamado no carregamento do app
+   */
+  async checkProjectDeadlines(userId: string): Promise<number> {
+    try {
+      // Busca projetos com deadline definido que não foram notificados
+      const { data: projects, error } = await supabase
+        .from('projects')
+        .select('id, name, deadline, notify_days_before, deadline_notified, status')
+        .eq('created_by', userId)
+        .not('deadline', 'is', null)
+        .in('status', ['planning', 'active', 'on_hold']); // Apenas projetos não finalizados
+
+      if (error) throw error;
+      if (!projects || projects.length === 0) return 0;
+
+      let notificationsCreated = 0;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      for (const project of projects) {
+        const deadline = new Date(project.deadline);
+        deadline.setHours(0, 0, 0, 0);
+
+        const diffTime = deadline.getTime() - today.getTime();
+        const daysUntilDeadline = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        const notifyDaysBefore = project.notify_days_before ?? 3;
+
+        // Verifica se deve notificar (dias <= notify_days_before ou atrasado)
+        const shouldNotify = daysUntilDeadline <= notifyDaysBefore;
+
+        // Se já foi notificado e ainda não venceu, pula
+        // Se está atrasado, notifica novamente (a cada dia)
+        if (project.deadline_notified && daysUntilDeadline > 0) {
+          continue;
+        }
+
+        // Se está atrasado, verifica se já notificou hoje
+        if (daysUntilDeadline < 0) {
+          const existingNotification = await this.checkExistingNotificationToday(
+            userId,
+            project.id,
+            'project_overdue'
+          );
+          if (existingNotification) continue;
+        }
+
+        if (shouldNotify) {
+          await this.createProjectDeadlineNotification(
+            userId,
+            project.id,
+            project.name,
+            daysUntilDeadline,
+            project.deadline
+          );
+
+          // Marca como notificado se não estiver atrasado
+          if (daysUntilDeadline >= 0 && !project.deadline_notified) {
+            await supabase
+              .from('projects')
+              .update({ deadline_notified: true })
+              .eq('id', project.id);
+          }
+
+          notificationsCreated++;
+        }
+      }
+
+      return notificationsCreated;
+    } catch (error) {
+      console.error('Failed to check project deadlines:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Verifica se já existe uma notificação do tipo para o projeto criada hoje
+   */
+  private async checkExistingNotificationToday(
+    userId: string,
+    projectId: string,
+    type: string
+  ): Promise<boolean> {
+    try {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('related_project_id', projectId)
+        .eq('type', type)
+        .gte('created_at', todayStart.toISOString())
+        .limit(1);
+
+      if (error) throw error;
+      return (data && data.length > 0);
+    } catch (error) {
+      console.error('Failed to check existing notification:', error);
+      return false;
     }
   }
 

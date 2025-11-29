@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProjects, useClients, useAuth } from '../stores/appStore';
-import { ProjectService } from '../services';
+import { ProjectService, CategoryService, TagService, TaskService } from '../services';
+import type { Task, Category, Tag } from '../types';
 import {
   Plus,
   FolderKanban,
@@ -18,6 +19,9 @@ import {
   LayoutGrid,
   List,
   MoreVertical,
+  Clock,
+  AlertTriangle,
+  ListPlus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -57,6 +61,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import ProjectDialog from '../components/ProjectDialog';
+import TaskDialog from '../components/TaskDialog';
 import { PageHeader, PageContainer, PageAction } from '@/components/ui/page-header';
 import { StatsGrid, CardGrid } from '@/components/ui/responsive-grid';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -75,6 +80,13 @@ const Projects: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Estados para TaskDialog (criar tarefa a partir do projeto)
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+  const [selectedProjectForTask, setSelectedProjectForTask] = useState<Project | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [isSavingTask, setIsSavingTask] = useState(false);
+
   // Filtros
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -87,6 +99,8 @@ const Projects: React.FC = () => {
   useEffect(() => {
     if (user) {
       loadProjects();
+      loadCategories();
+      loadTags();
     }
   }, [user]);
 
@@ -101,6 +115,26 @@ const Projects: React.FC = () => {
       toast.error(error.message || 'Erro ao carregar projetos');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadCategories = async () => {
+    if (!user) return;
+    try {
+      const data = await CategoryService.getAll(user.id);
+      setCategories(data);
+    } catch (error: any) {
+      console.error('Erro ao carregar categorias:', error);
+    }
+  };
+
+  const loadTags = async () => {
+    if (!user) return;
+    try {
+      const data = await TagService.getAll(user.id);
+      setTags(data);
+    } catch (error: any) {
+      console.error('Erro ao carregar tags:', error);
     }
   };
 
@@ -215,6 +249,31 @@ const Projects: React.FC = () => {
     }
   };
 
+  // Handlers para criar tarefa a partir do projeto
+  const handleAddTaskToProject = (project: Project) => {
+    setSelectedProjectForTask(project);
+    setTaskDialogOpen(true);
+  };
+
+  const handleSaveTask = async (taskData: Partial<Task>) => {
+    if (!user) return;
+
+    try {
+      setIsSavingTask(true);
+      await TaskService.create(taskData, user.id);
+      toast.success('Tarefa criada com sucesso!');
+      setTaskDialogOpen(false);
+      setSelectedProjectForTask(null);
+      // Recarregar projetos para atualizar contagem de tarefas
+      await loadProjects();
+    } catch (error: any) {
+      console.error('Erro ao criar tarefa:', error);
+      toast.error(error.message || 'Erro ao criar tarefa');
+    } finally {
+      setIsSavingTask(false);
+    }
+  };
+
   const getStatusBadge = (status: Project['status']) => {
     const variants: Record<Project['status'], { label: string; className: string }> = {
       planning: {
@@ -248,6 +307,70 @@ const Projects: React.FC = () => {
     if (percentage >= 50) return 'bg-yellow-500';
     if (percentage >= 25) return 'bg-orange-500';
     return 'bg-gray-400';
+  };
+
+  // Calcula dias restantes até o deadline
+  const getDaysUntilDeadline = (deadline: string | undefined): number | null => {
+    if (!deadline) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const deadlineDate = new Date(deadline);
+    deadlineDate.setHours(0, 0, 0, 0);
+    const diffTime = deadlineDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  // Retorna o badge de deadline baseado nos dias restantes
+  const getDeadlineBadge = (project: Project) => {
+    if (!project.deadline || project.status === 'completed' || project.status === 'cancelled') {
+      return null;
+    }
+
+    const daysLeft = getDaysUntilDeadline(project.deadline);
+    if (daysLeft === null) return null;
+
+    if (daysLeft < 0) {
+      // Atrasado
+      return (
+        <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 flex items-center gap-1">
+          <AlertTriangle className="h-3 w-3" />
+          {Math.abs(daysLeft)} {Math.abs(daysLeft) === 1 ? 'dia' : 'dias'} atrasado
+        </Badge>
+      );
+    } else if (daysLeft === 0) {
+      // Vence hoje
+      return (
+        <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 flex items-center gap-1">
+          <AlertTriangle className="h-3 w-3" />
+          Vence hoje!
+        </Badge>
+      );
+    } else if (daysLeft <= 3) {
+      // Urgente (3 dias ou menos)
+      return (
+        <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 flex items-center gap-1">
+          <Clock className="h-3 w-3" />
+          {daysLeft} {daysLeft === 1 ? 'dia' : 'dias'} restante{daysLeft !== 1 ? 's' : ''}
+        </Badge>
+      );
+    } else if (daysLeft <= 7) {
+      // Atenção (7 dias ou menos)
+      return (
+        <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 flex items-center gap-1">
+          <Clock className="h-3 w-3" />
+          {daysLeft} dias restantes
+        </Badge>
+      );
+    } else {
+      // Normal (mais de 7 dias)
+      return (
+        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 flex items-center gap-1">
+          <Clock className="h-3 w-3" />
+          {daysLeft} dias restantes
+        </Badge>
+      );
+    }
   };
 
   if (isLoading) {
@@ -472,7 +595,10 @@ const Projects: React.FC = () => {
                       </TableCell>
                       <TableCell className="hidden md:table-cell">{project.client.companyName}</TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
-                        {getStatusBadge(project.status)}
+                        <div className="flex flex-col gap-1">
+                          {getStatusBadge(project.status)}
+                          {getDeadlineBadge(project)}
+                        </div>
                       </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()} className="hidden lg:table-cell">
                         <div className="w-32">
@@ -515,6 +641,10 @@ const Projects: React.FC = () => {
                             <DropdownMenuItem onClick={() => handleView(project)}>
                               <Eye className="mr-2 h-4 w-4" />
                               Ver detalhes
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleAddTaskToProject(project)}>
+                              <ListPlus className="mr-2 h-4 w-4" />
+                              Adicionar tarefa
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleEdit(project)}>
                               <Pencil className="mr-2 h-4 w-4" />
@@ -561,8 +691,9 @@ const Projects: React.FC = () => {
                         </p>
                       </div>
                     </div>
-                    <div onClick={(e) => e.stopPropagation()} className="shrink-0">
+                    <div onClick={(e) => e.stopPropagation()} className="shrink-0 flex flex-col gap-1 items-end">
                       {getStatusBadge(project.status)}
+                      {getDeadlineBadge(project)}
                     </div>
                   </div>
                 </CardHeader>
@@ -616,6 +747,15 @@ const Projects: React.FC = () => {
                       variant="outline"
                       size="icon"
                       className="h-8 w-8 sm:h-9 sm:w-9"
+                      onClick={() => handleAddTaskToProject(project)}
+                      title="Adicionar tarefa"
+                    >
+                      <ListPlus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 sm:h-9 sm:w-9"
                       onClick={() => handleEdit(project)}
                     >
                       <Pencil className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -644,6 +784,23 @@ const Projects: React.FC = () => {
         clients={clients}
         onClose={() => setDialogOpen(false)}
         onSave={handleSave}
+      />
+
+      {/* TaskDialog para criar tarefa a partir do projeto */}
+      <TaskDialog
+        open={taskDialogOpen}
+        mode="create"
+        task={null}
+        categories={categories}
+        tags={tags}
+        projects={projects}
+        preselectedProject={selectedProjectForTask}
+        isSaving={isSavingTask}
+        onClose={() => {
+          setTaskDialogOpen(false);
+          setSelectedProjectForTask(null);
+        }}
+        onSave={handleSaveTask}
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useTasks, useAuth } from '../stores/appStore';
-import { TaskService, CategoryService, TagService } from '../services';
+import { useTasks, useAuth, useProjects } from '../stores/appStore';
+import { TaskService, CategoryService, TagService, ProjectService } from '../services';
 import { formatDate } from '../utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Pencil, Trash2, Plus, CheckCircle2, Circle, ListTodo, Loader2, Search, X, Filter, ChevronDown } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Pencil, Trash2, Plus, CheckCircle2, Circle, ListTodo, Loader2, Search, X, Filter, ChevronDown, Briefcase, Building2 } from 'lucide-react';
 import TaskDialog from '../components/TaskDialog';
 import TagSelector from '../components/TagSelector';
 import CategorySelector from '../components/CategorySelector';
@@ -23,11 +24,12 @@ import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription, EmptyCont
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import type { Task, Category, Tag } from '../types';
+import type { Task, Category, Tag, Project } from '../types';
 
 const Tasks: React.FC = () => {
   const navigate = useNavigate();
   const { tasks, setTasks, selectedTask: storeSelectedTask, setSelectedTask: setStoreSelectedTask } = useTasks();
+  const { projects, setProjects } = useProjects();
   const { user } = useAuth();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create');
@@ -43,6 +45,7 @@ const Tasks: React.FC = () => {
   // Estados de filtro
   const [searchText, setSearchText] = useState('');
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
+  const [filterProject, setFilterProject] = useState<string | null>(null);
   const [filterTags, setFilterTags] = useState<string[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -52,6 +55,7 @@ const Tasks: React.FC = () => {
       loadTasks();
       loadCategories();
       loadTags();
+      loadProjects();
     }
   }, [user]);
 
@@ -89,7 +93,23 @@ const Tasks: React.FC = () => {
     }
   };
 
-  // Filtrar tarefas por status, busca, categoria e tags
+  const loadProjects = async () => {
+    if (!user) return;
+    try {
+      const data = await ProjectService.getAll(user.id);
+      setProjects(data);
+    } catch (error: any) {
+      console.error('Erro ao carregar projetos:', error);
+    }
+  };
+
+  // Filtrar projetos ativos para os filtros
+  const activeProjects = useMemo(() =>
+    projects.filter(p => p.status === 'active' || p.status === 'planning'),
+    [projects]
+  );
+
+  // Filtrar tarefas por status, busca, categoria, projeto e tags
   const filteredTasks = useMemo(() => {
     let filtered = tasks;
 
@@ -114,6 +134,15 @@ const Tasks: React.FC = () => {
       filtered = filtered.filter(task => task.category?.id === filterCategory);
     }
 
+    // Filtro por projeto
+    if (filterProject) {
+      if (filterProject === 'none') {
+        filtered = filtered.filter(task => !task.project);
+      } else {
+        filtered = filtered.filter(task => task.project?.id === filterProject);
+      }
+    }
+
     // Filtro por tags
     if (filterTags.length > 0) {
       filtered = filtered.filter(task =>
@@ -122,7 +151,7 @@ const Tasks: React.FC = () => {
     }
 
     return filtered;
-  }, [tasks, activeTab, searchText, filterCategory, filterTags]);
+  }, [tasks, activeTab, searchText, filterCategory, filterProject, filterTags]);
 
   // Contadores de tarefas
   const taskCounts = useMemo(() => {
@@ -202,10 +231,11 @@ const Tasks: React.FC = () => {
   const handleClearFilters = () => {
     setSearchText('');
     setFilterCategory(null);
+    setFilterProject(null);
     setFilterTags([]);
   };
 
-  const hasActiveFilters = searchText.trim() !== '' || filterCategory !== null || filterTags.length > 0;
+  const hasActiveFilters = searchText.trim() !== '' || filterCategory !== null || filterProject !== null || filterTags.length > 0;
 
   // Componente de loading skeleton
   const SkeletonCard = () => (
@@ -292,6 +322,21 @@ const Tasks: React.FC = () => {
                 <Badge variant="outline" className="text-xs">
                   📅 {formatDate(task.dueDate)}
                 </Badge>
+              )}
+              {/* Badge do Projeto + Cliente */}
+              {task.project && (
+                <>
+                  <Badge variant="outline" className="text-xs bg-primary/5 border-primary/30">
+                    <Briefcase className="h-3 w-3 mr-1" />
+                    {task.project.name}
+                  </Badge>
+                  {task.project.client && (
+                    <Badge variant="secondary" className="text-xs">
+                      <Building2 className="h-3 w-3 mr-1" />
+                      {task.project.client.companyName}
+                    </Badge>
+                  )}
+                </>
               )}
             </div>
 
@@ -413,7 +458,7 @@ const Tasks: React.FC = () => {
                   <h3 className="text-sm font-semibold">Filtros</h3>
                   {hasActiveFilters && (
                     <Badge variant="secondary" className="ml-2">
-                      {[searchText.trim() !== '', filterCategory !== null, filterTags.length > 0].filter(Boolean).length} ativo(s)
+                      {[searchText.trim() !== '', filterCategory !== null, filterProject !== null, filterTags.length > 0].filter(Boolean).length} ativo(s)
                     </Badge>
                   )}
                   <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${filtersOpen ? 'rotate-180' : ''}`} />
@@ -428,7 +473,7 @@ const Tasks: React.FC = () => {
             </div>
 
             <CollapsibleContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-2">
             {/* Busca de texto */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-muted-foreground">Buscar</label>
@@ -462,6 +507,51 @@ const Tasks: React.FC = () => {
                 onCategoryChange={(category) => setFilterCategory(category?.id || null)}
                 placeholder="Todas as categorias"
               />
+            </div>
+
+            {/* Filtro por projeto */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground">Projeto</label>
+              <Select
+                value={filterProject || 'all'}
+                onValueChange={(value) => setFilterProject(value === 'all' ? null : value)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Todos os projetos">
+                    {filterProject === null ? (
+                      <span className="text-muted-foreground">Todos os projetos</span>
+                    ) : filterProject === 'none' ? (
+                      <span>Tarefas pessoais</span>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Briefcase className="h-4 w-4 text-muted-foreground" />
+                        <span>{activeProjects.find(p => p.id === filterProject)?.name}</span>
+                      </div>
+                    )}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    <span className="text-muted-foreground">Todos os projetos</span>
+                  </SelectItem>
+                  <SelectItem value="none">
+                    <span>Tarefas pessoais (sem projeto)</span>
+                  </SelectItem>
+                  {activeProjects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      <div className="flex items-center gap-2">
+                        <Briefcase className="h-4 w-4" />
+                        <span>{p.name}</span>
+                        {p.client && (
+                          <span className="text-muted-foreground text-xs">
+                            ({p.client.companyName})
+                          </span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Filtro por tags */}
@@ -601,6 +691,7 @@ const Tasks: React.FC = () => {
         task={selectedTask}
         categories={categories}
         tags={tags}
+        projects={projects}
         isSaving={isSaving}
         onClose={() => setDialogOpen(false)}
         onSave={handleSave}

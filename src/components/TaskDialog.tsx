@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Spinner } from '@/components/ui/spinner';
 import TagSelector from './TagSelector';
 import CategorySelector from './CategorySelector';
-import type { Task, Category, Tag } from '../types';
+import { Briefcase } from 'lucide-react';
+import type { Task, Category, Tag, Project } from '../types';
 
 interface TaskDialogProps {
   open: boolean;
@@ -16,6 +17,8 @@ interface TaskDialogProps {
   task?: Task | null;
   categories: Category[];
   tags: Tag[];
+  projects?: Project[];
+  preselectedProject?: Project | null;
   isSaving?: boolean;
   onClose: () => void;
   onSave: (task: Partial<Task>) => void;
@@ -27,6 +30,8 @@ const TaskDialog: React.FC<TaskDialogProps> = ({
   task,
   categories,
   tags,
+  projects = [],
+  preselectedProject,
   isSaving = false,
   onClose,
   onSave,
@@ -38,8 +43,15 @@ const TaskDialog: React.FC<TaskDialogProps> = ({
     priority: 'medium' as Task['priority'],
     dueDate: '',
     category: null as Category | null,
+    project: null as Project | null,
     tags: [] as Tag[],
   });
+
+  // Filtrar apenas projetos ativos
+  const activeProjects = useMemo(() =>
+    projects.filter(p => p.status === 'active' || p.status === 'planning'),
+    [projects]
+  );
 
   useEffect(() => {
     if (mode === 'edit' && task) {
@@ -50,6 +62,7 @@ const TaskDialog: React.FC<TaskDialogProps> = ({
         priority: task.priority,
         dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '',
         category: task.category || null,
+        project: task.project || null,
         tags: task.tags || [],
       });
     } else if (mode === 'create') {
@@ -60,10 +73,11 @@ const TaskDialog: React.FC<TaskDialogProps> = ({
         priority: 'medium',
         dueDate: '',
         category: null,
+        project: preselectedProject || null,
         tags: [],
       });
     }
-  }, [mode, task, open]);
+  }, [mode, task, open, preselectedProject]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,6 +93,7 @@ const TaskDialog: React.FC<TaskDialogProps> = ({
       priority: formData.priority,
       dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : undefined,
       category: formData.category || undefined,
+      project: formData.project || undefined,
       tags: formData.tags,
     };
 
@@ -136,6 +151,55 @@ const TaskDialog: React.FC<TaskDialogProps> = ({
               onCategoryChange={(category) => setFormData({ ...formData, category })}
             />
           </div>
+
+          {/* Projeto (opcional) */}
+          {activeProjects.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="project">Projeto (opcional)</Label>
+              <Select
+                value={formData.project?.id || 'none'}
+                onValueChange={(value) => {
+                  const project = value === 'none' ? null : activeProjects.find(p => p.id === value) || null;
+                  setFormData({ ...formData, project });
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecione um projeto (opcional)">
+                    {formData.project ? (
+                      <div className="flex items-center gap-2">
+                        <Briefcase className="h-4 w-4 text-muted-foreground" />
+                        <span>{formData.project.name}</span>
+                        <span className="text-muted-foreground text-xs">
+                          ({formData.project.client?.companyName})
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">Nenhum projeto</span>
+                    )}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">
+                    <span className="text-muted-foreground">Nenhum projeto (tarefa pessoal)</span>
+                  </SelectItem>
+                  {activeProjects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      <div className="flex items-center gap-2">
+                        <Briefcase className="h-4 w-4" />
+                        <span>{p.name}</span>
+                        <span className="text-muted-foreground text-xs">
+                          ({p.client?.companyName})
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Vincule a tarefa a um projeto ou deixe em branco para tarefa pessoal
+              </p>
+            </div>
+          )}
 
           {/* Tags */}
           <div className="space-y-2">
