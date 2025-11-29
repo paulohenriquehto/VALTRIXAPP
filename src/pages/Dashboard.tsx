@@ -27,7 +27,7 @@ import type { PipelineMetrics } from '../types/prospects';
 const Dashboard: React.FC = () => {
   const stats = useDashboardStats();
   const { tasks, setTasks } = useTasks();
-  const { clients, setClients, getMRRMetrics } = useClients();
+  const { clients, setClients, setPayments, getMRRMetrics } = useClients();
   const { user } = useAuth();
   const [prospectMetrics, setProspectMetrics] = useState<PipelineMetrics | null>(null);
 
@@ -41,13 +41,15 @@ const Dashboard: React.FC = () => {
   const loadData = async () => {
     if (!user) return;
     try {
-      const [tasksData, clientsData, prospectsMetricsData] = await Promise.all([
+      const [tasksData, clientsData, paymentsData, prospectsMetricsData] = await Promise.all([
         TaskService.getAll(user.id),
         ClientService.getAll(user.id),
+        ClientService.getAllPayments(),
         ProspectService.getPipelineMetrics(user.id)
       ]);
       setTasks(tasksData);
       setClients(clientsData);
+      setPayments(paymentsData);
       setProspectMetrics(prospectsMetricsData);
     } catch (error: any) {
       console.error('Erro ao carregar dados do dashboard:', error);

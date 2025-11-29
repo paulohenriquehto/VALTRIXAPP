@@ -323,6 +323,8 @@ export const useAppStore = create<AppState>()(
 
           // Receita prevista para os próximos 7 dias (clientes recorrentes)
           const today = now.getDate();
+          const currentMonth = now.getMonth();
+          const currentYear = now.getFullYear();
           const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).getDate();
 
           const upcomingRevenue7Days = activeRecurringClients.filter(c => {
@@ -337,10 +339,25 @@ export const useAppStore = create<AppState>()(
             return dueDay >= today && dueDay <= sevenDaysFromNow;
           }).reduce((sum, c) => sum + c.monthlyValue, 0);
 
-          // Receita prevista para hoje (clientes recorrentes)
-          const todayRevenue = activeRecurringClients.filter(c => {
+          // Receita prevista para hoje (clientes recorrentes - vencimentos)
+          const recurringTodayRevenue = activeRecurringClients.filter(c => {
             return c.paymentDueDay === today;
           }).reduce((sum, c) => sum + c.monthlyValue, 0);
+
+          // Pagamentos REAIS recebidos hoje (de qualquer cliente)
+          // Usar comparação de string para evitar problemas de timezone
+          const todayDateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(today).padStart(2, '0')}`;
+          const paidTodayRevenue = state.payments
+            .filter(p => {
+              if (p.status !== 'paid' || !p.paidDate) return false;
+              // paidDate pode ser "2025-11-29" ou "2025-11-29T..."
+              const paidDateStr = p.paidDate.split('T')[0];
+              return paidDateStr === todayDateStr;
+            })
+            .reduce((sum, p) => sum + p.amount, 0);
+
+          // Receita de hoje = vencimentos recorrentes + pagamentos reais
+          const todayRevenue = recurringTodayRevenue + paidTodayRevenue;
 
           // === MÉTRICAS DE CLIENTES FREELANCE ===
           const activeFreelance = freelanceClients.filter(c => c.status === 'active').length;
@@ -360,9 +377,6 @@ export const useAppStore = create<AppState>()(
             .reduce((sum, p) => sum + p.amount, 0);
 
           // Receita do MÊS ATUAL (pagamentos pagos no mês corrente)
-          const currentMonth = now.getMonth();
-          const currentYear = now.getFullYear();
-
           const monthlyRevenuePaid = freelancePayments
             .filter(p => {
               if (p.status !== 'paid' || !p.paidDate) return false;
