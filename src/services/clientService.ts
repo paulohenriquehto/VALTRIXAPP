@@ -53,7 +53,7 @@ export class ClientService {
             phone: client.phone || null,
             client_type: client.clientType || 'recurring', // Novo campo
             monthly_value: client.monthlyValue || 0,
-            contract_start_date: client.contractStartDate || new Date().toISOString(),
+            contract_start_date: client.contractStartDate || new Date().toISOString().split('T')[0],
             payment_due_day: client.paymentDueDay || 1,
             payment_method: client.paymentMethod || 'pix',
             payment_status: client.paymentStatus || 'pending',

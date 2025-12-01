@@ -1,6 +1,19 @@
 // Utilitários de data e hora
 export const formatDate = (date: string | Date, format: 'short' | 'long' | 'relative' = 'short'): string => {
-  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  // Fix: Parse date strings in local timezone to avoid UTC conversion bugs
+  let dateObj: Date;
+  if (typeof date === 'string') {
+    // If it's a date-only string (YYYY-MM-DD), parse as local date
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      const [year, month, day] = date.split('-').map(Number);
+      dateObj = new Date(year, month - 1, day);
+    } else {
+      // Otherwise parse normally (for ISO strings with time)
+      dateObj = new Date(date);
+    }
+  } else {
+    dateObj = date;
+  }
   
   if (format === 'relative') {
     const now = new Date();
@@ -33,18 +46,40 @@ export const formatDate = (date: string | Date, format: 'short' | 'long' | 'rela
 };
 
 export const isOverdue = (dueDate: string | Date): boolean => {
-  const date = typeof dueDate === 'string' ? new Date(dueDate) : dueDate;
+  // Fix: Parse date strings in local timezone to avoid UTC conversion bugs
+  let date: Date;
+  if (typeof dueDate === 'string') {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
+      const [year, month, day] = dueDate.split('-').map(Number);
+      date = new Date(year, month - 1, day);
+    } else {
+      date = new Date(dueDate);
+    }
+  } else {
+    date = dueDate;
+  }
   return date < new Date();
 };
 
 export const getDueDateColor = (dueDate: string | Date, status: string): string => {
   if (status === 'completed' || status === 'archived') return 'text-gray-500';
-  
-  const date = typeof dueDate === 'string' ? new Date(dueDate) : dueDate;
+
+  // Fix: Parse date strings in local timezone to avoid UTC conversion bugs
+  let date: Date;
+  if (typeof dueDate === 'string') {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
+      const [year, month, day] = dueDate.split('-').map(Number);
+      date = new Date(year, month - 1, day);
+    } else {
+      date = new Date(dueDate);
+    }
+  } else {
+    date = dueDate;
+  }
   const now = new Date();
   const diff = date.getTime() - now.getTime();
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  
+
   if (days < 0) return 'text-red-600';
   if (days <= 1) return 'text-orange-600';
   if (days <= 3) return 'text-yellow-600';
